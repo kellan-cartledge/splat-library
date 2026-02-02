@@ -31,9 +31,18 @@ resource "aws_dynamodb_table" "scenes" {
   hash_key     = "id"
   tags         = var.common_tags
 
-  attribute { name = "id"; type = "S" }
-  attribute { name = "userId"; type = "S" }
-  attribute { name = "status"; type = "S" }
+  attribute {
+    name = "id"
+    type = "S"
+  }
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+  attribute {
+    name = "status"
+    type = "S"
+  }
 
   global_secondary_index {
     name            = "userId-index"

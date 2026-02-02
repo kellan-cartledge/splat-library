@@ -40,3 +40,26 @@ module "pipeline" {
   scenes_table      = module.storage.scenes_table
   scenes_table_arn  = module.storage.scenes_table_arn
 }
+
+module "api" {
+  source               = "./modules/api"
+  project              = var.project
+  environment          = var.environment
+  common_tags          = local.common_tags
+  cognito_user_pool_id = module.cognito.user_pool_id
+  cognito_client_id    = module.cognito.client_id
+  assets_bucket        = module.storage.assets_bucket
+  assets_bucket_arn    = module.storage.assets_bucket_arn
+  scenes_table         = module.storage.scenes_table
+  scenes_table_arn     = module.storage.scenes_table_arn
+  state_machine_arn    = module.pipeline.state_machine_arn
+}
+
+module "cdn" {
+  source            = "./modules/cdn"
+  project           = var.project
+  environment       = var.environment
+  common_tags       = local.common_tags
+  assets_bucket     = module.storage.assets_bucket
+  assets_bucket_arn = module.storage.assets_bucket_arn
+}

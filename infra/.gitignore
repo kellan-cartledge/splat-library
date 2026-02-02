@@ -2,7 +2,7 @@
 .terraform/
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl
+# Keep .terraform.lock.hcl tracked for reproducible builds
 terraform.tfvars
 crash.log
 override.tf

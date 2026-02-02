@@ -1,0 +1,12 @@
+{
+  "defaultBase": "main",
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "production": ["default", "!{projectRoot}/**/*.spec.ts"]
+  },
+  "targetDefaults": {
+    "build": { "dependsOn": ["^build"], "cache": true },
+    "test": { "cache": true },
+    "lint": { "cache": true }
+  }
+}

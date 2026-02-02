@@ -1,0 +1,10 @@
+# Test data
+test-data/
+
+# Docker
+*.tar
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Cache
+.cache/
+.turbo/

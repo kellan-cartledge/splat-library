@@ -1,0 +1,7 @@
+@tailwind utilities;
+
+@layer utilities {
+  .min-h-viewer {
+    min-height: 500px;
+  }
+}

@@ -5,7 +5,8 @@
   "sourceRoot": "apps/api/src",
   "targets": {
     "build": {
-      "command": "cd apps/api && zip -r dist/lambda.zip src/",
+      "command": "mkdir -p dist && cd src && zip -r ../dist/lambda.zip .",
+      "options": { "cwd": "apps/api" },
       "outputs": ["{projectRoot}/dist"]
     }
   }

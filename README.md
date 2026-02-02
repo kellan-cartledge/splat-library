@@ -1,5 +1,9 @@
 # Splat Library
 
+![Checkov](https://github.com/kellan-cartledge/splat-library/actions/workflows/checkov.yml/badge.svg)
+![Gitleaks](https://github.com/kellan-cartledge/splat-library/actions/workflows/gitleaks.yml/badge.svg)
+![Trivy](https://github.com/kellan-cartledge/splat-library/actions/workflows/trivy.yml/badge.svg)
+
 A scalable 3D Gaussian Splatting creation pipeline and viewer library on AWS.
 
 ## Overview

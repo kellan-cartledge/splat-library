@@ -438,15 +438,53 @@ See [SPEC-CONTAINERS.md](./SPEC-CONTAINERS.md) for container specifications.
 
 ## Implementation Timeline
 
-| Phase | Duration | Deliverables |
-|-------|----------|--------------|
-| 1. Foundation | 2 days | Terraform modules, Cognito, S3, DynamoDB |
-| 2. API | 2 days | Lambda handlers, API Gateway routes |
-| 3. Pipeline | 3 days | Step Functions, Batch jobs, containers |
-| 4. Frontend | 3 days | React app, gallery, viewer |
-| 5. Integration | 2 days | End-to-end testing, deployment |
+| Phase | Duration | Deliverables | Status |
+|-------|----------|--------------|--------|
+| 1. Foundation | 2 days | Terraform modules, Cognito, S3, DynamoDB | ✅ Scaffolded |
+| 2. API | 2 days | Lambda handlers, API Gateway routes | ✅ Scaffolded |
+| 3. Pipeline | 3 days | Step Functions, Batch jobs, containers | ✅ Scaffolded |
+| 4. Frontend | 3 days | React app, gallery, viewer | ✅ Scaffolded |
+| 5. Integration | 2 days | End-to-end testing, deployment | ⏳ Not started |
 
 **Total: ~12 days**
+
+---
+
+## Progress Tracker
+
+### ✅ Completed
+- [x] Initialize git repo
+- [x] Setup Nx + pnpm monorepo
+- [x] Create project structure
+- [x] Web app scaffolding (React, Vite, TailwindCSS)
+- [x] API Lambda handlers (Python)
+- [x] Container Dockerfiles (COLMAP, 3DGS)
+- [x] Terraform modules (storage, cognito, pipeline)
+- [x] Build system working (`pnpm build` passes)
+- [x] Git version control with .gitignore files
+
+### 🔲 Remaining - Infrastructure
+- [ ] Create `infra/modules/api/` (API Gateway + Lambda deployment)
+- [ ] Create `infra/modules/cdn/` (CloudFront distribution)
+- [ ] Add Step Functions state machine to pipeline module
+- [ ] Add Lambda functions to pipeline module
+- [ ] Run `terraform init` and `terraform plan`
+- [ ] Deploy infrastructure to AWS
+
+### 🔲 Remaining - Containers
+- [ ] Build and test COLMAP container locally
+- [ ] Build and test 3DGS container locally
+- [ ] Push containers to ECR
+
+### 🔲 Remaining - Frontend
+- [ ] Integrate Spark viewer (pending package availability)
+- [ ] Test Cognito authentication flow
+- [ ] Create environment config (.env files)
+
+### 🔲 Remaining - Integration
+- [ ] End-to-end pipeline test
+- [ ] Deploy web app to S3/CloudFront
+- [ ] Documentation and README
 
 ---
 
@@ -487,10 +525,17 @@ See [SPEC-CONTAINERS.md](./SPEC-CONTAINERS.md) for container specifications.
 
 ## Next Steps
 
-1. Initialize git repo and monorepo with `pnpm` and Nx
-2. Deploy Phase 1 infrastructure
-3. Build and test API handlers locally
-4. Create container images
-5. Implement Step Functions workflow
-6. Build React frontend
-7. End-to-end integration testing
+### Immediate (Next Session)
+1. **Complete Terraform modules** - Add missing `api/` and `cdn/` modules
+2. **Add Step Functions** - State machine definition in pipeline module
+3. **Run `terraform init && terraform plan`** - Validate infrastructure
+
+### Short-term
+4. Deploy infrastructure to AWS (`terraform apply`)
+5. Build and push container images to ECR
+6. Test pipeline end-to-end with sample video
+
+### Before Production
+7. Integrate Spark viewer when package is available
+8. Add proper error handling and logging
+9. Create README with setup instructions

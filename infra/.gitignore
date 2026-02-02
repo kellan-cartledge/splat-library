@@ -13,3 +13,6 @@ override.tf.json
 # Sensitive files
 *.pem
 *.key
+
+# Lambda archives
+*.zip

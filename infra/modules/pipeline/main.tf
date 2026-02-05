@@ -154,8 +154,8 @@ resource "aws_batch_compute_environment" "gpu" {
     type                = "SPOT"
     allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"
     min_vcpus           = 0
-    max_vcpus           = 8
-    instance_type       = ["g5.xlarge", "g6.xlarge"]
+    max_vcpus           = 64
+    instance_type       = ["g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g6.xlarge", "g6.2xlarge", "g6.4xlarge"]
     subnets             = aws_subnet.private[*].id
     security_group_ids  = [aws_security_group.batch.id]
     instance_role       = aws_iam_instance_profile.batch.arn
@@ -196,12 +196,13 @@ resource "aws_batch_job_definition" "colmap" {
   tags = var.common_tags
 
   container_properties = jsonencode({
-    image      = "${aws_ecr_repository.colmap.repository_url}:latest"
-    vcpus      = 8
-    memory     = 16384
-    command    = ["python", "run.py"]
-    jobRoleArn = aws_iam_role.batch_job.arn
-    environment = [{ name = "BUCKET", value = var.assets_bucket }]
+    image                = "${aws_ecr_repository.colmap.repository_url}:latest"
+    vcpus                = 4
+    memory               = 16384
+    command              = ["python3", "run.py"]
+    jobRoleArn           = aws_iam_role.batch_job.arn
+    resourceRequirements = [{ type = "GPU", value = "1" }]
+    environment          = [{ name = "BUCKET", value = var.assets_bucket }]
   })
 }
 
@@ -291,9 +292,18 @@ resource "aws_lambda_function" "extract_frames" {
   source_code_hash = data.archive_file.extract_frames.output_base64sha256
   tags             = var.common_tags
 
+  layers = [aws_lambda_layer_version.ffmpeg.arn]
+
   environment {
     variables = { ASSETS_BUCKET = var.assets_bucket }
   }
+}
+
+resource "aws_lambda_layer_version" "ffmpeg" {
+  filename            = "${path.module}/ffmpeg-layer.zip"
+  layer_name          = "${var.project}-ffmpeg"
+  compatible_runtimes = ["python3.13", "python3.12", "python3.11"]
+  description         = "FFmpeg static binary for video processing"
 }
 
 resource "aws_lambda_function" "convert" {
@@ -401,7 +411,7 @@ resource "aws_sfn_state_machine" "pipeline" {
         Parameters = {
           JobName       = "colmap"
           JobDefinition = aws_batch_job_definition.colmap.arn
-          JobQueue      = aws_batch_job_queue.cpu.arn
+          JobQueue      = aws_batch_job_queue.gpu.arn
           ContainerOverrides = {
             Environment = [
               { Name = "SCENE_ID", "Value.$" = "$.sceneId" },

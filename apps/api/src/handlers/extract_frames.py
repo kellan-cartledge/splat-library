@@ -16,7 +16,7 @@ def handler(event, context):
     os.makedirs(frames_dir, exist_ok=True)
     
     subprocess.run([
-        'ffmpeg', '-i', local_video,
+        '/opt/bin/ffmpeg', '-i', local_video,
         '-vf', 'fps=2',
         '-q:v', '2',
         f'{frames_dir}/frame_%04d.jpg'

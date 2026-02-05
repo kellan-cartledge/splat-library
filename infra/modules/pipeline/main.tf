@@ -123,10 +123,10 @@ resource "aws_ecr_repository" "gaussian_splatting" {
 
 # Batch
 resource "aws_batch_compute_environment" "cpu" {
-  compute_environment_name = "${var.project}-cpu"
-  type                     = "MANAGED"
-  service_role             = aws_iam_role.batch_service.arn
-  tags                     = var.common_tags
+  name         = "${var.project}-cpu"
+  type         = "MANAGED"
+  service_role = aws_iam_role.batch_service.arn
+  tags         = var.common_tags
 
   compute_resources {
     type                = "SPOT"
@@ -137,15 +137,18 @@ resource "aws_batch_compute_environment" "cpu" {
     subnets             = aws_subnet.private[*].id
     security_group_ids  = [aws_security_group.batch.id]
     instance_role       = aws_iam_instance_profile.batch.arn
+    spot_iam_fleet_role = aws_iam_role.spot_fleet.arn
     tags                = var.common_tags
   }
+
+  depends_on = [aws_iam_role_policy_attachment.batch_service]
 }
 
 resource "aws_batch_compute_environment" "gpu" {
-  compute_environment_name = "${var.project}-gpu"
-  type                     = "MANAGED"
-  service_role             = aws_iam_role.batch_service.arn
-  tags                     = var.common_tags
+  name         = "${var.project}-gpu"
+  type         = "MANAGED"
+  service_role = aws_iam_role.batch_service.arn
+  tags         = var.common_tags
 
   compute_resources {
     type                = "SPOT"
@@ -156,8 +159,11 @@ resource "aws_batch_compute_environment" "gpu" {
     subnets             = aws_subnet.private[*].id
     security_group_ids  = [aws_security_group.batch.id]
     instance_role       = aws_iam_instance_profile.batch.arn
+    spot_iam_fleet_role = aws_iam_role.spot_fleet.arn
     tags                = var.common_tags
   }
+
+  depends_on = [aws_iam_role_policy_attachment.batch_service]
 }
 
 resource "aws_batch_job_queue" "cpu" {

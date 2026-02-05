@@ -6,9 +6,8 @@ WORKDIR /opt
 RUN git clone https://github.com/graphdeco-inria/gaussian-splatting.git --recursive
 
 WORKDIR /opt/gaussian-splatting
-RUN pip install -r requirements.txt
+RUN pip install plyfile tqdm boto3>=1.34.0
 RUN pip install submodules/diff-gaussian-rasterization submodules/simple-knn
-RUN pip install boto3>=1.34.0
 
 WORKDIR /app
 COPY run.py .

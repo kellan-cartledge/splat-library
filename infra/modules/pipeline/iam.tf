@@ -75,3 +75,22 @@ resource "aws_iam_role_policy" "batch_job" {
     ]
   })
 }
+
+# Spot Fleet Role
+resource "aws_iam_role" "spot_fleet" {
+  name = "${var.project}-spot-fleet-role"
+  tags = var.common_tags
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "spotfleet.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "spot_fleet" {
+  role       = aws_iam_role.spot_fleet.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole"
+}

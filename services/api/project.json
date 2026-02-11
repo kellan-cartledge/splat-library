@@ -2,11 +2,11 @@
   "name": "api",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
-  "sourceRoot": "packages/api/src",
+  "sourceRoot": "services/api/src",
   "targets": {
     "build": {
       "command": "mkdir -p dist && cd src && zip -r ../dist/lambda.zip .",
-      "options": { "cwd": "packages/api" },
+      "options": { "cwd": "services/api" },
       "outputs": ["{projectRoot}/dist"]
     }
   }

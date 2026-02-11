@@ -248,19 +248,19 @@ resource "aws_batch_job_definition" "gaussian_splatting" {
 # Lambda Functions for Pipeline
 data "archive_file" "extract_frames" {
   type        = "zip"
-  source_file = "${path.module}/../../../packages/api/src/handlers/extract_frames.py"
+  source_file = "${path.module}/../../../services/api/src/handlers/extract_frames.py"
   output_path = "${path.module}/extract_frames.zip"
 }
 
 data "archive_file" "convert" {
   type        = "zip"
-  source_file = "${path.module}/../../../packages/api/src/handlers/convert.py"
+  source_file = "${path.module}/../../../services/api/src/handlers/convert.py"
   output_path = "${path.module}/convert.zip"
 }
 
 data "archive_file" "handle_failure" {
   type        = "zip"
-  source_file = "${path.module}/../../../packages/api/src/handlers/handle_failure.py"
+  source_file = "${path.module}/../../../services/api/src/handlers/handle_failure.py"
   output_path = "${path.module}/handle_failure.zip"
 }
 

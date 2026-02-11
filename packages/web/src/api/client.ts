@@ -7,6 +7,8 @@ export interface Scene {
   name: string;
   description?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  processingStage?: 'pending' | 'extracting_frames' | 'running_colmap' | 'training_3dgs' | 'converting' | 'completed' | 'failed';
+  error?: string;
   thumbnailKey: string;
   splatKey: string;
   createdAt: number;

@@ -11,10 +11,11 @@ def handler(event, context):
     table = dynamodb.Table(TABLE)
     table.update_item(
         Key={'id': scene_id},
-        UpdateExpression='SET #s = :status, #e = :error',
+        UpdateExpression='SET #s = :status, processingStage = :stage, #e = :error',
         ExpressionAttributeNames={'#s': 'status', '#e': 'error'},
         ExpressionAttributeValues={
             ':status': 'failed',
+            ':stage': 'failed',
             ':error': str(error)
         }
     )

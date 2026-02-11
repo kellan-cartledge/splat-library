@@ -3,11 +3,21 @@ import subprocess
 import boto3
 
 s3 = boto3.client('s3')
+dynamodb = boto3.resource('dynamodb')
 BUCKET = os.environ['ASSETS_BUCKET']
+TABLE = os.environ['SCENES_TABLE']
 
 def handler(event, context):
     scene_id = event['sceneId']
     video_key = event['videoKey']
+    
+    # Update processing stage
+    table = dynamodb.Table(TABLE)
+    table.update_item(
+        Key={'id': scene_id},
+        UpdateExpression='SET processingStage = :stage',
+        ExpressionAttributeValues={':stage': 'extracting_frames'}
+    )
     
     local_video = f'/tmp/{scene_id}.mp4'
     s3.download_file(BUCKET, video_key, local_video)

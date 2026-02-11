@@ -2,16 +2,22 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import SplatViewer from '../components/Viewer/SplatViewer';
+import ProcessingStatus from '../components/Viewer/ProcessingStatus';
 import { fetchScene } from '../api/client';
 
 export default function ScenePage() {
   const { id } = useParams<{ id: string }>();
   const [copied, setCopied] = useState(false);
+  const [showViewer, setShowViewer] = useState(false);
   
   const { data: scene, isLoading, error } = useQuery({
     queryKey: ['scene', id],
     queryFn: () => fetchScene(id!),
-    enabled: !!id
+    enabled: !!id,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'processing' || status === 'pending' ? 10000 : false;
+    }
   });
 
   const handleCopyLink = () => {
@@ -19,6 +25,9 @@ export default function ScenePage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const isProcessing = scene?.status === 'processing' || scene?.status === 'pending';
+  const isReady = scene?.status === 'completed' && (showViewer || scene.processingStage === 'completed');
 
   if (isLoading) {
     return (
@@ -93,28 +102,38 @@ export default function ScenePage() {
 
       <div className="glow-line mb-6" />
       
-      {/* Viewer */}
+      {/* Viewer or Processing Status */}
       <div className="card overflow-hidden animate-fade-up">
         <div className="aspect-video bg-surface-overlay">
-          <SplatViewer splatKey={scene.splatKey} />
+          {isProcessing || (scene.status === 'failed') || (scene.status === 'completed' && !showViewer && !scene.splatKey) ? (
+            <ProcessingStatus 
+              stage={scene.processingStage || 'pending'} 
+              error={scene.error}
+              onViewSplat={() => setShowViewer(true)} 
+            />
+          ) : (
+            <SplatViewer splatKey={scene.splatKey} />
+          )}
         </div>
       </div>
 
-      {/* Controls hint */}
-      <div className="mt-4 flex justify-center gap-6 text-text-muted text-sm">
-        <span className="flex items-center gap-2">
-          <kbd className="px-2 py-1 bg-surface-overlay border border-surface-border rounded text-xs font-mono">Drag</kbd>
-          Rotate
-        </span>
-        <span className="flex items-center gap-2">
-          <kbd className="px-2 py-1 bg-surface-overlay border border-surface-border rounded text-xs font-mono">Scroll</kbd>
-          Zoom
-        </span>
-        <span className="flex items-center gap-2">
-          <kbd className="px-2 py-1 bg-surface-overlay border border-surface-border rounded text-xs font-mono">Shift+Drag</kbd>
-          Pan
-        </span>
-      </div>
+      {/* Controls hint - only show when viewer is visible */}
+      {isReady && scene.splatKey && (
+        <div className="mt-4 flex justify-center gap-6 text-text-muted text-sm">
+          <span className="flex items-center gap-2">
+            <kbd className="px-2 py-1 bg-surface-overlay border border-surface-border rounded text-xs font-mono">Drag</kbd>
+            Rotate
+          </span>
+          <span className="flex items-center gap-2">
+            <kbd className="px-2 py-1 bg-surface-overlay border border-surface-border rounded text-xs font-mono">Scroll</kbd>
+            Zoom
+          </span>
+          <span className="flex items-center gap-2">
+            <kbd className="px-2 py-1 bg-surface-overlay border border-surface-border rounded text-xs font-mono">Shift+Drag</kbd>
+            Pan
+          </span>
+        </div>
+      )}
     </div>
   );
 }

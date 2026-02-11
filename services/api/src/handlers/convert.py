@@ -15,6 +15,13 @@ def handler(event, context):
     iterations = event.get('iterations', 7000)
     table = dynamodb.Table(TABLE)
     
+    # Update to converting stage
+    table.update_item(
+        Key={'id': scene_id},
+        UpdateExpression='SET processingStage = :stage',
+        ExpressionAttributeValues={':stage': 'converting'}
+    )
+    
     ply_key = f'outputs/{scene_id}/point_cloud/iteration_{iterations}/point_cloud.ply'
     local_ply = f'/tmp/{scene_id}.ply'
     s3.download_file(BUCKET, ply_key, local_ply)
@@ -34,10 +41,11 @@ def handler(event, context):
     
     table.update_item(
         Key={'id': scene_id},
-        UpdateExpression='SET #s = :status, splatKey = :splat, thumbnailKey = :thumb, completedAt = :time',
+        UpdateExpression='SET #s = :status, processingStage = :stage, splatKey = :splat, thumbnailKey = :thumb, completedAt = :time',
         ExpressionAttributeNames={'#s': 'status'},
         ExpressionAttributeValues={
             ':status': 'completed',
+            ':stage': 'completed',
             ':splat': splat_key,
             ':thumb': thumbnail_key,
             ':time': int(time.time())

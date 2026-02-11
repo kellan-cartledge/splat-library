@@ -264,6 +264,12 @@ data "archive_file" "handle_failure" {
   output_path = "${path.module}/handle_failure.zip"
 }
 
+data "archive_file" "update_stage" {
+  type        = "zip"
+  source_file = "${path.module}/../../../services/api/src/handlers/update_stage.py"
+  output_path = "${path.module}/update_stage.zip"
+}
+
 resource "aws_iam_role" "lambda" {
   name = "${var.project}-pipeline-lambda-role"
   tags = var.common_tags
@@ -318,7 +324,10 @@ resource "aws_lambda_function" "extract_frames" {
   layers = [aws_lambda_layer_version.ffmpeg.arn]
 
   environment {
-    variables = { ASSETS_BUCKET = var.assets_bucket }
+    variables = {
+      ASSETS_BUCKET = var.assets_bucket
+      SCENES_TABLE  = var.scenes_table
+    }
   }
 }
 
@@ -373,6 +382,21 @@ resource "aws_lambda_function" "handle_failure" {
   }
 }
 
+resource "aws_lambda_function" "update_stage" {
+  filename         = data.archive_file.update_stage.output_path
+  function_name    = "${var.project}-update-stage"
+  role             = aws_iam_role.lambda.arn
+  handler          = "update_stage.handler"
+  runtime          = "python3.13"
+  timeout          = 30
+  source_code_hash = data.archive_file.update_stage.output_base64sha256
+  tags             = var.common_tags
+
+  environment {
+    variables = { SCENES_TABLE = var.scenes_table }
+  }
+}
+
 # Step Functions
 resource "aws_iam_role" "sfn" {
   name = "${var.project}-sfn-role"
@@ -401,7 +425,8 @@ resource "aws_iam_role_policy" "sfn" {
         Resource = [
           aws_lambda_function.extract_frames.arn,
           aws_lambda_function.convert.arn,
-          aws_lambda_function.handle_failure.arn
+          aws_lambda_function.handle_failure.arn,
+          aws_lambda_function.update_stage.arn
         ]
       },
       {
@@ -450,6 +475,20 @@ resource "aws_sfn_state_machine" "pipeline" {
           "Payload.$"  = "$"
         }
         ResultPath = "$.extractResult"
+        Next       = "SetColmapStage"
+        Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
+      }
+      SetColmapStage = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::lambda:invoke"
+        Parameters = {
+          FunctionName = aws_lambda_function.update_stage.arn
+          Payload = {
+            "sceneId.$" = "$.sceneId"
+            stage       = "running_colmap"
+          }
+        }
+        ResultPath = null
         Next       = "RunCOLMAP"
         Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
       }
@@ -468,6 +507,20 @@ resource "aws_sfn_state_machine" "pipeline" {
           }
         }
         ResultPath = "$.colmapResult"
+        Next       = "Set3dgsStage"
+        Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
+      }
+      Set3dgsStage = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::lambda:invoke"
+        Parameters = {
+          FunctionName = aws_lambda_function.update_stage.arn
+          Payload = {
+            "sceneId.$" = "$.sceneId"
+            stage       = "training_3dgs"
+          }
+        }
+        ResultPath = null
         Next       = "Run3DGS"
         Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
       }

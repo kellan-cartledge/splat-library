@@ -39,6 +39,7 @@ module "pipeline" {
   assets_bucket_arn = module.storage.assets_bucket_arn
   scenes_table      = module.storage.scenes_table
   scenes_table_arn  = module.storage.scenes_table_arn
+  gpu_min_vcpus     = var.gpu_min_vcpus
 }
 
 module "api" {

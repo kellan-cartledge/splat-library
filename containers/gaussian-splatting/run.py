@@ -6,11 +6,12 @@ import subprocess
 import boto3
 from pathlib import Path
 
-s3 = boto3.client('s3')
-sfn = boto3.client('stepfunctions')
+s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
+sfn = boto3.client('stepfunctions', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
 
 BUCKET = os.environ['BUCKET']
 SCENE_ID = os.environ['SCENE_ID']
+ITERATIONS = int(os.environ.get('ITERATIONS', '7000'))
 TASK_TOKEN = os.environ.get('SFN_TASK_TOKEN')
 
 def send_success(output: dict):
@@ -41,10 +42,15 @@ def main():
                 s3.download_file(BUCKET, key, str(local_path))
         
         print("Starting 3DGS training...")
+        densify_until = min(ITERATIONS - 2000, 5000)
         subprocess.run([
             'python', '/opt/gaussian-splatting/train.py',
             '-s', str(input_dir), '-m', str(output_dir),
-            '--iterations', '30000', '--save_iterations', '30000', '--test_iterations', '30000'
+            '--iterations', str(ITERATIONS),
+            '--densify_until_iter', str(densify_until),
+            '--densification_interval', '200',
+            '--save_iterations', str(ITERATIONS),
+            '--test_iterations', str(ITERATIONS)
         ], check=True)
         
         print("Uploading 3DGS output...")
@@ -53,7 +59,7 @@ def main():
                 relative_path = file_path.relative_to(output_dir)
                 s3.upload_file(str(file_path), BUCKET, f'outputs/{SCENE_ID}/{relative_path}')
         
-        send_success({'sceneId': SCENE_ID, 'status': 'training_complete'})
+        send_success({'sceneId': SCENE_ID, 'iterations': ITERATIONS, 'status': 'training_complete'})
         
     except subprocess.CalledProcessError as e:
         send_failure(f"Training failed: {e}")

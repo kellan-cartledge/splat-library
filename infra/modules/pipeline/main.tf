@@ -5,6 +5,10 @@ variable "assets_bucket" {}
 variable "assets_bucket_arn" {}
 variable "scenes_table" {}
 variable "scenes_table_arn" {}
+variable "gpu_min_vcpus" {
+  type    = number
+  default = 0
+}
 
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
@@ -145,7 +149,7 @@ resource "aws_batch_compute_environment" "cpu" {
 }
 
 resource "aws_batch_compute_environment" "gpu" {
-  name         = "${var.project}-gpu"
+  name         = "${var.project}-gpu-v2"
   type         = "MANAGED"
   service_role = aws_iam_role.batch_service.arn
   tags         = var.common_tags
@@ -153,7 +157,7 @@ resource "aws_batch_compute_environment" "gpu" {
   compute_resources {
     type                = "SPOT"
     allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"
-    min_vcpus           = 0
+    min_vcpus           = var.gpu_min_vcpus
     max_vcpus           = 64
     instance_type       = ["g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g6.xlarge", "g6.2xlarge", "g6.4xlarge"]
     subnets             = aws_subnet.private[*].id
@@ -161,9 +165,28 @@ resource "aws_batch_compute_environment" "gpu" {
     instance_role       = aws_iam_instance_profile.batch.arn
     spot_iam_fleet_role = aws_iam_role.spot_fleet.arn
     tags                = var.common_tags
+
+    launch_template {
+      launch_template_id = aws_launch_template.gpu.id
+      version            = "$Latest"
+    }
   }
 
   depends_on = [aws_iam_role_policy_attachment.batch_service]
+}
+
+resource "aws_launch_template" "gpu" {
+  name = "${var.project}-gpu-lt"
+  tags = var.common_tags
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 100
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
 }
 
 resource "aws_batch_job_queue" "cpu" {
@@ -213,8 +236,8 @@ resource "aws_batch_job_definition" "gaussian_splatting" {
 
   container_properties = jsonencode({
     image                = "${aws_ecr_repository.gaussian_splatting.repository_url}:latest"
-    vcpus                = 4
-    memory               = 16384
+    vcpus                = 8
+    memory               = 32768
     command              = ["python", "run.py"]
     jobRoleArn           = aws_iam_role.batch_job.arn
     resourceRequirements = [{ type = "GPU", value = "1" }]
@@ -306,6 +329,14 @@ resource "aws_lambda_layer_version" "ffmpeg" {
   description         = "FFmpeg static binary for video processing"
 }
 
+resource "aws_lambda_layer_version" "python_deps" {
+  filename            = "${path.module}/python-deps-layer.zip"
+  layer_name          = "${var.project}-python-deps"
+  compatible_runtimes = ["python3.13", "python3.12", "python3.11"]
+  source_code_hash    = filebase64sha256("${path.module}/python-deps-layer.zip")
+  description         = "Python dependencies (numpy, plyfile)"
+}
+
 resource "aws_lambda_function" "convert" {
   filename         = data.archive_file.convert.output_path
   function_name    = "${var.project}-convert"
@@ -316,6 +347,8 @@ resource "aws_lambda_function" "convert" {
   memory_size      = 1024
   source_code_hash = data.archive_file.convert.output_base64sha256
   tags             = var.common_tags
+
+  layers = [aws_lambda_layer_version.python_deps.arn]
 
   environment {
     variables = {
@@ -392,8 +425,23 @@ resource "aws_sfn_state_machine" "pipeline" {
 
   definition = jsonencode({
     Comment = "3DGS Processing Pipeline"
-    StartAt = "ExtractFrames"
+    StartAt = "CheckIterations"
     States = {
+      CheckIterations = {
+        Type    = "Choice"
+        Choices = [{
+          Variable      = "$.iterations"
+          IsPresent     = true
+          Next          = "ExtractFrames"
+        }]
+        Default = "SetDefaultIterations"
+      }
+      SetDefaultIterations = {
+        Type   = "Pass"
+        Result = 7000
+        ResultPath = "$.iterations"
+        Next   = "ExtractFrames"
+      }
       ExtractFrames = {
         Type     = "Task"
         Resource = "arn:aws:states:::lambda:invoke"
@@ -433,7 +481,8 @@ resource "aws_sfn_state_machine" "pipeline" {
           ContainerOverrides = {
             Environment = [
               { Name = "SCENE_ID", "Value.$" = "$.sceneId" },
-              { Name = "BUCKET", Value = var.assets_bucket }
+              { Name = "BUCKET", Value = var.assets_bucket },
+              { Name = "ITERATIONS", "Value.$" = "States.Format('{}', $.iterations)" }
             ]
           }
         }

@@ -195,21 +195,161 @@
 [data-amplify-authenticator] {
   --amplify-colors-background-primary: var(--color-surface-raised);
   --amplify-colors-background-secondary: var(--color-surface-overlay);
+  --amplify-colors-background-tertiary: var(--color-surface-base);
   --amplify-colors-border-primary: var(--color-surface-border);
+  --amplify-colors-border-secondary: var(--color-surface-border);
   --amplify-colors-border-focus: var(--color-accent-cyan);
   --amplify-colors-font-primary: var(--color-text-primary);
   --amplify-colors-font-secondary: var(--color-text-secondary);
+  --amplify-colors-font-tertiary: var(--color-text-muted);
+  --amplify-colors-font-interactive: var(--color-accent-cyan);
+  --amplify-colors-brand-primary-10: rgba(57, 186, 230, 0.1);
+  --amplify-colors-brand-primary-20: rgba(57, 186, 230, 0.2);
+  --amplify-colors-brand-primary-40: rgba(57, 186, 230, 0.4);
+  --amplify-colors-brand-primary-60: rgba(57, 186, 230, 0.6);
   --amplify-colors-brand-primary-80: var(--color-accent-cyan);
   --amplify-colors-brand-primary-90: var(--color-accent-cyan);
   --amplify-colors-brand-primary-100: var(--color-accent-cyan);
-  --amplify-components-button-primary-background-color: var(--color-accent-cyan);
-  --amplify-components-button-primary-color: var(--color-surface-base);
-  --amplify-components-fieldcontrol-border-color: var(--color-surface-border);
-  --amplify-components-fieldcontrol-focus-border-color: var(--color-accent-cyan);
+  --amplify-components-authenticator-router-border-width: 0;
+  --amplify-components-authenticator-router-box-shadow: none;
+  --amplify-components-authenticator-form-padding: 2rem;
+  --amplify-fonts-default-variable: var(--font-body);
+  --amplify-fonts-default-static: var(--font-body);
+  --amplify-radii-small: 0.375rem;
+  --amplify-radii-medium: 0.5rem;
+  --amplify-radii-large: 0.75rem;
 }
 
 [data-amplify-authenticator] [data-amplify-container] {
   background: rgba(15, 20, 25, 0.8);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--color-surface-border);
   border-radius: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(57, 186, 230, 0.05);
+}
+
+[data-amplify-authenticator] [data-amplify-router] {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Form header */
+[data-amplify-authenticator] .amplify-heading {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.025em;
+}
+
+/* Input fields */
+[data-amplify-authenticator] .amplify-input,
+[data-amplify-authenticator] .amplify-field-group__control {
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-surface-border);
+  border-radius: 0.5rem;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  transition: all 0.2s;
+}
+
+[data-amplify-authenticator] .amplify-input:focus,
+[data-amplify-authenticator] .amplify-field-group__control:focus {
+  border-color: var(--color-accent-cyan);
+  box-shadow: 0 0 0 1px rgba(57, 186, 230, 0.3);
+  outline: none;
+}
+
+[data-amplify-authenticator] .amplify-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Labels */
+[data-amplify-authenticator] .amplify-label {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* Primary button (Sign In) */
+[data-amplify-authenticator] .amplify-button--primary {
+  background: linear-gradient(135deg, var(--color-accent-cyan), #2da8d8);
+  color: var(--color-surface-base);
+  font-family: var(--font-body);
+  font-weight: 600;
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 14px rgba(57, 186, 230, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: all 0.2s;
+}
+
+[data-amplify-authenticator] .amplify-button--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(57, 186, 230, 0.5), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+[data-amplify-authenticator] .amplify-button--primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(57, 186, 230, 0.4);
+}
+
+/* Link buttons (Forgot Password, etc.) */
+[data-amplify-authenticator] .amplify-button--link {
+  color: var(--color-accent-cyan);
+  font-family: var(--font-body);
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+[data-amplify-authenticator] .amplify-button--link:hover {
+  color: var(--color-accent-purple);
+  text-decoration: none;
+}
+
+/* Field group (password show/hide button) */
+[data-amplify-authenticator] .amplify-field-group__outer-end .amplify-button {
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-surface-border);
+  border-left: none;
+  color: var(--color-text-secondary);
+}
+
+[data-amplify-authenticator] .amplify-field-group__outer-end .amplify-button:hover {
+  color: var(--color-accent-cyan);
+  background: var(--color-surface-overlay);
+}
+
+/* Error messages */
+[data-amplify-authenticator] .amplify-alert--error {
+  background: rgba(240, 113, 120, 0.1);
+  border: 1px solid rgba(240, 113, 120, 0.2);
+  border-radius: 0.5rem;
+  color: var(--color-accent-red);
+}
+
+/* Tabs (if using sign up) */
+[data-amplify-authenticator] .amplify-tabs__item {
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+[data-amplify-authenticator] .amplify-tabs__item:hover {
+  color: var(--color-text-primary);
+}
+
+[data-amplify-authenticator] .amplify-tabs__item--active {
+  color: var(--color-accent-cyan);
+  border-bottom-color: var(--color-accent-cyan);
+}
+
+/* Divider */
+[data-amplify-authenticator] .amplify-divider {
+  border-color: var(--color-surface-border);
+}
+
+[data-amplify-authenticator] .amplify-divider::before {
+  color: var(--color-text-muted);
 }

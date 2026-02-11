@@ -1,4 +1,5 @@
-FROM nvcr.io/nvidia/pytorch:24.01-py3
+# syntax=docker/dockerfile:1
+FROM --platform=linux/amd64 nvcr.io/nvidia/pytorch:24.01-py3
 
 RUN apt-get update && apt-get install -y git cmake ninja-build && rm -rf /var/lib/apt/lists/*
 

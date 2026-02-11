@@ -6,8 +6,8 @@ import boto3
 import pycolmap
 from pathlib import Path
 
-s3 = boto3.client('s3')
-sfn = boto3.client('stepfunctions')
+s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
+sfn = boto3.client('stepfunctions', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
 
 BUCKET = os.environ['BUCKET']
 SCENE_ID = os.environ['SCENE_ID']
@@ -47,7 +47,11 @@ def main():
             raise RuntimeError(f"Not enough images: {num_images}")
         
         print("Running feature extraction...")
-        pycolmap.extract_features(database_path=database_path, image_path=image_dir)
+        pycolmap.extract_features(
+            database_path=database_path,
+            image_path=image_dir,
+            camera_model='SIMPLE_PINHOLE'
+        )
         
         print("Running feature matching...")
         pycolmap.match_exhaustive(database_path=database_path)

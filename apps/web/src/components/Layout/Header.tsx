@@ -55,7 +55,7 @@ export default function Header() {
               </div>
             </>
           ) : (
-            <Link to="/" className="ml-4 btn-primary text-sm">
+            <Link to="/" className="ml-4 btn btn-secondary text-sm">
               Sign In
             </Link>
           )}

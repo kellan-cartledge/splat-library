@@ -12,9 +12,10 @@ TABLE = os.environ['SCENES_TABLE']
 
 def handler(event, context):
     scene_id = event['sceneId']
+    iterations = event.get('iterations', 7000)
     table = dynamodb.Table(TABLE)
     
-    ply_key = f'outputs/{scene_id}/point_cloud/iteration_30000/point_cloud.ply'
+    ply_key = f'outputs/{scene_id}/point_cloud/iteration_{iterations}/point_cloud.ply'
     local_ply = f'/tmp/{scene_id}.ply'
     s3.download_file(BUCKET, ply_key, local_ply)
     

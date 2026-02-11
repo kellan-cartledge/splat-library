@@ -98,19 +98,19 @@ resource "aws_iam_role_policy" "lambda" {
 # Lambda Functions
 data "archive_file" "upload" {
   type        = "zip"
-  source_file = "${path.module}/../../../apps/api/src/handlers/upload.py"
+  source_file = "${path.module}/../../../packages/api/src/handlers/upload.py"
   output_path = "${path.module}/upload.zip"
 }
 
 data "archive_file" "scenes" {
   type        = "zip"
-  source_file = "${path.module}/../../../apps/api/src/handlers/scenes.py"
+  source_file = "${path.module}/../../../packages/api/src/handlers/scenes.py"
   output_path = "${path.module}/scenes.zip"
 }
 
 data "archive_file" "jobs" {
   type        = "zip"
-  source_file = "${path.module}/../../../apps/api/src/handlers/jobs.py"
+  source_file = "${path.module}/../../../packages/api/src/handlers/jobs.py"
   output_path = "${path.module}/jobs.zip"
 }
 

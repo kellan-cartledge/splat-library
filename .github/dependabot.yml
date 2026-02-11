@@ -6,7 +6,7 @@ updates:
       interval: weekly
 
   - package-ecosystem: pip
-    directory: /apps/api
+    directory: /packages/api
     schedule:
       interval: weekly
 

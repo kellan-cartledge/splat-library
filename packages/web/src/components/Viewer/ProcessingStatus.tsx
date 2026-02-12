@@ -6,8 +6,8 @@ interface ProcessingStatusProps {
 
 const STAGES = [
   { key: 'extracting_frames', label: 'Extract Frames', description: 'Extracting frames from video...' },
-  { key: 'running_colmap', label: 'COLMAP', description: 'Running structure from motion...' },
-  { key: 'training_3dgs', label: 'Training', description: 'Training 3D Gaussian Splat...' },
+  { key: 'running_colmap', label: 'Analyze', description: 'Analyzing camera positions...' },
+  { key: 'training_3dgs', label: 'Generate', description: 'Generating 3D Gaussian Splat...' },
   { key: 'converting', label: 'Converting', description: 'Converting to viewable format...' },
 ];
 
@@ -46,8 +46,11 @@ export default function ProcessingStatus({ stage, error, onViewSplat }: Processi
         <div className="text-center">
           <h3 className="text-text-primary text-xl mb-2">Processing Failed</h3>
           <p className="text-text-secondary mb-2">Something went wrong during processing.</p>
-          {error && <p className="text-text-muted text-sm font-mono">{error}</p>}
+          {error && <p className="text-text-muted text-sm font-mono mb-4">{error}</p>}
         </div>
+        <a href="/upload" className="btn-secondary">
+          Try Again
+        </a>
       </div>
     );
   }

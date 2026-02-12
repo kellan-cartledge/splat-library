@@ -4,6 +4,7 @@ import time
 import boto3
 import numpy as np
 from plyfile import PlyData
+from shared.helpers import update_processing_stage
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
@@ -13,14 +14,8 @@ TABLE = os.environ['SCENES_TABLE']
 def handler(event, context):
     scene_id = event['sceneId']
     iterations = event.get('iterations', 7000)
-    table = dynamodb.Table(TABLE)
     
-    # Update to converting stage
-    table.update_item(
-        Key={'id': scene_id},
-        UpdateExpression='SET processingStage = :stage',
-        ExpressionAttributeValues={':stage': 'converting'}
-    )
+    update_processing_stage(scene_id, 'converting')
     
     ply_key = f'outputs/{scene_id}/point_cloud/iteration_{iterations}/point_cloud.ply'
     local_ply = f'/tmp/{scene_id}.ply'
@@ -39,6 +34,7 @@ def handler(event, context):
         Key=thumbnail_key
     )
     
+    table = dynamodb.Table(TABLE)
     table.update_item(
         Key={'id': scene_id},
         UpdateExpression='SET #s = :status, processingStage = :stage, splatKey = :splat, thumbnailKey = :thumb, completedAt = :time',

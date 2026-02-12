@@ -5,7 +5,9 @@ import boto3
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
+s3 = boto3.client('s3')
 table = dynamodb.Table(os.environ['SCENES_TABLE'])
+BUCKET = os.environ.get('ASSETS_BUCKET')
 
 class DecimalEncoder(json.JSONEncoder):
     def default(self, o):
@@ -23,6 +25,8 @@ def handler(event, context):
         return get_scene(event)
     elif method == 'POST' and path == '/scenes':
         return create_scene(event)
+    elif method == 'DELETE' and path.startswith('/scenes/'):
+        return delete_scene(event)
     
     return {'statusCode': 404, 'body': 'Not found'}
 
@@ -58,6 +62,7 @@ def create_scene(event):
         'userId': user_id,
         'name': body.get('name', 'Untitled'),
         'status': 'pending',
+        'processingStage': 'pending',
         'videoKey': body['videoKey'],
         'createdAt': int(time.time())
     }
@@ -68,3 +73,31 @@ def create_scene(event):
         'headers': {'Content-Type': 'application/json'},
         'body': json.dumps(item)
     }
+
+
+def delete_scene(event):
+    scene_id = event['pathParameters']['id']
+    user_id = event['requestContext']['authorizer']['jwt']['claims']['sub']
+    
+    # Get scene and verify ownership
+    response = table.get_item(Key={'id': scene_id})
+    if 'Item' not in response:
+        return {'statusCode': 404, 'body': 'Scene not found'}
+    
+    scene = response['Item']
+    if scene.get('userId') != user_id:
+        return {'statusCode': 403, 'body': 'Not authorized'}
+    
+    # Delete S3 objects
+    if BUCKET:
+        prefixes = [f'uploads/{scene_id}/', f'frames/{scene_id}/', f'colmap/{scene_id}/', f'outputs/{scene_id}/']
+        for prefix in prefixes:
+            paginator = s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+                for obj in page.get('Contents', []):
+                    s3.delete_object(Bucket=BUCKET, Key=obj['Key'])
+    
+    # Delete DynamoDB record
+    table.delete_item(Key={'id': scene_id})
+    
+    return {'statusCode': 204, 'body': ''}

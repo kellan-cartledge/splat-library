@@ -19,7 +19,7 @@ export default function SceneCard({ scene }: SceneCardProps) {
   
   const statusBadge = () => {
     switch (scene.status) {
-      case 'complete':
+      case 'completed':
         return <span className="badge-success">Ready</span>;
       case 'processing':
         return <span className="badge-warning">Processing</span>;

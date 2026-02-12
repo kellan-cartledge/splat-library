@@ -1,14 +1,11 @@
 # syntax=docker/dockerfile:1
 FROM --platform=linux/amd64 nvcr.io/nvidia/pytorch:24.01-py3
 
-RUN apt-get update && apt-get install -y git cmake ninja-build && rm -rf /var/lib/apt/lists/*
+# Install dependencies
+RUN pip install ninja numpy jaxtyping rich boto3 plyfile tqdm pillow
 
-WORKDIR /opt
-RUN git clone https://github.com/graphdeco-inria/gaussian-splatting.git --recursive
-
-WORKDIR /opt/gaussian-splatting
-RUN pip install plyfile tqdm boto3>=1.34.0
-RUN pip install submodules/diff-gaussian-rasterization submodules/simple-knn
+# Install pre-built gsplat wheel for PyTorch 2.4 + CUDA 12.1 (compatible with 24.01 container)
+RUN pip install https://github.com/nerfstudio-project/gsplat/releases/download/v1.5.3/gsplat-1.5.3+pt24cu121-cp310-cp310-linux_x86_64.whl
 
 WORKDIR /app
 COPY run.py .

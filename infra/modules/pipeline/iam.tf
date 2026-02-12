@@ -71,6 +71,11 @@ resource "aws_iam_role_policy" "batch_job" {
         Effect   = "Allow"
         Action   = ["states:SendTaskSuccess", "states:SendTaskFailure", "states:SendTaskHeartbeat"]
         Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:UpdateItem"]
+        Resource = var.scenes_table_arn
       }
     ]
   })

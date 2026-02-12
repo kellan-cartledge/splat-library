@@ -1,23 +1,17 @@
 import os
 import subprocess
 import boto3
+from shared.helpers import update_processing_stage
 
 s3 = boto3.client('s3')
-dynamodb = boto3.resource('dynamodb')
 BUCKET = os.environ['ASSETS_BUCKET']
-TABLE = os.environ['SCENES_TABLE']
 
 def handler(event, context):
     scene_id = event['sceneId']
     video_key = event['videoKey']
+    fps = event.get('fps', 3)
     
-    # Update processing stage
-    table = dynamodb.Table(TABLE)
-    table.update_item(
-        Key={'id': scene_id},
-        UpdateExpression='SET processingStage = :stage',
-        ExpressionAttributeValues={':stage': 'extracting_frames'}
-    )
+    update_processing_stage(scene_id, 'extracting_frames')
     
     local_video = f'/tmp/{scene_id}.mp4'
     s3.download_file(BUCKET, video_key, local_video)
@@ -27,7 +21,7 @@ def handler(event, context):
     
     subprocess.run([
         '/opt/bin/ffmpeg', '-i', local_video,
-        '-vf', 'fps=2',
+        '-vf', f'fps={fps}',
         '-q:v', '2',
         f'{frames_dir}/frame_%04d.jpg'
     ], check=True)
@@ -44,5 +38,9 @@ def handler(event, context):
     return {
         'sceneId': scene_id,
         'framesPrefix': f'frames/{scene_id}/',
-        'frameCount': frame_count
+        'frameCount': frame_count,
+        'fps': fps,
+        'iterations': event.get('iterations', 30000),
+        'densifyUntilIter': event.get('densifyUntilIter', 15000),
+        'densificationInterval': event.get('densificationInterval', 100)
     }

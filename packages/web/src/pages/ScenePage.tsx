@@ -1,14 +1,24 @@
-import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useAuthenticator } from '@aws-amplify/ui-react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import SplatViewer from '../components/Viewer/SplatViewer';
 import ProcessingStatus from '../components/Viewer/ProcessingStatus';
-import { fetchScene } from '../api/client';
+import { fetchScene, deleteScene } from '../api/client';
 
 export default function ScenePage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const [copied, setCopied] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuthenticator((context) => [context.user]);
+  
+  // Debug mode: ?stage=extracting_frames (or running_colmap, training_3dgs, converting, failed)
+  const debugStage = searchParams.get('stage');
   
   const { data: scene, isLoading, error } = useQuery({
     queryKey: ['scene', id],
@@ -20,12 +30,26 @@ export default function ScenePage() {
     }
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) throw new Error('Not authenticated');
+      return deleteScene(id!, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scenes'] });
+      navigate('/gallery');
+    }
+  });
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isOwner = user && scene?.userId === user.userId;
   const isProcessing = scene?.status === 'processing' || scene?.status === 'pending';
   const isReady = scene?.status === 'completed' && (showViewer || scene.processingStage === 'completed');
 
@@ -80,34 +104,62 @@ export default function ScenePage() {
               {(scene.gaussianCount / 1000).toFixed(0)}K gaussians
             </span>
           )}
-          <button onClick={handleCopyLink} className="btn-secondary text-sm">
+          <button onClick={handleCopyLink} className="btn-secondary flex items-center gap-2">
             {copied ? (
               <>
                 <svg className="w-4 h-4 text-accent-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Copied!
+                <span>Copied!</span>
               </>
             ) : (
               <>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                 </svg>
-                Share
+                <span>Share</span>
               </>
             )}
           </button>
+          {isOwner && (
+            <button onClick={() => setShowDeleteConfirm(true)} className="btn-ghost flex items-center gap-2 text-accent-red hover:text-accent-red hover:bg-accent-red/10">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>Delete</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="card-glow p-6 max-w-sm mx-4 animate-fade-up">
+            <h3 className="text-text-primary text-lg font-medium mb-2">Delete Scene?</h3>
+            <p className="text-text-secondary text-sm mb-6">This will permanently delete "{scene.name}" and all associated data. This action cannot be undone.</p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setShowDeleteConfirm(false)} className="btn-ghost">Cancel</button>
+              <button 
+                onClick={() => deleteMutation.mutate()} 
+                disabled={deleteMutation.isPending}
+                className="btn-primary !bg-accent-red hover:!shadow-[0_6px_20px_rgba(240,113,120,0.5)]"
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="glow-line mb-6" />
       
       {/* Viewer or Processing Status */}
       <div className="card overflow-hidden animate-fade-up">
         <div className="aspect-video bg-surface-overlay">
-          {isProcessing || (scene.status === 'failed') || (scene.status === 'completed' && !showViewer && !scene.splatKey) ? (
+          {debugStage || isProcessing || (scene.status === 'failed') || (scene.status === 'completed' && !showViewer && !scene.splatKey) ? (
             <ProcessingStatus 
-              stage={scene.processingStage || 'pending'} 
+              stage={debugStage || scene.processingStage || 'pending'} 
               error={scene.error}
               onViewSplat={() => setShowViewer(true)} 
             />

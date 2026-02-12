@@ -10,11 +10,20 @@ interface UploadFormProps {
   }) => void;
 }
 
+const DEFAULTS = {
+  fps: 3,
+  iterations: 30000,
+  densifyUntilIter: 15000,
+  densificationInterval: 100
+};
+
 export default function UploadForm({ onUploadStart }: UploadFormProps) {
   const [name, setName] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [settings, setSettings] = useState(DEFAULTS);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -47,14 +56,14 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
       });
 
       await createScene({ sceneId, name, videoKey: key }, token!);
-      await startProcessing({ sceneId, videoKey: key }, token!);
+      await startProcessing({ sceneId, videoKey: key, ...settings }, token!);
 
       onUploadStart({ sceneId, status: 'processing', progress: 100 });
     } catch (error) {
       console.error('Upload failed:', error);
       onUploadStart({ sceneId: null, status: 'error', progress: 0 });
     }
-  }, [file, name, onUploadStart]);
+  }, [file, name, settings, onUploadStart]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -120,6 +129,85 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Advanced Settings */}
+      <div className="border border-surface-border rounded-lg overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="w-full px-4 py-3 flex items-center justify-between text-left bg-surface-overlay hover:bg-surface-overlay/80 transition-colors"
+        >
+          <span className="text-text-secondary text-sm">Advanced Settings</span>
+          <svg className={`w-4 h-4 text-text-muted transition-transform ${showAdvanced ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {showAdvanced && (
+          <div className="p-4 space-y-4 border-t border-surface-border">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label text-xs">Frame Rate (fps)</label>
+                <input
+                  type="number"
+                  value={settings.fps}
+                  onChange={(e) => setSettings(s => ({ ...s, fps: Number(e.target.value) }))}
+                  className="input text-sm"
+                  min={1}
+                  max={10}
+                />
+                <p className="text-text-muted text-xs mt-1">Frames extracted per second</p>
+              </div>
+              <div>
+                <label className="label text-xs">Training Iterations</label>
+                <input
+                  type="number"
+                  value={settings.iterations}
+                  onChange={(e) => setSettings(s => ({ ...s, iterations: Number(e.target.value) }))}
+                  className="input text-sm"
+                  min={1000}
+                  max={100000}
+                  step={1000}
+                />
+                <p className="text-text-muted text-xs mt-1">More = better quality, slower</p>
+              </div>
+              <div>
+                <label className="label text-xs">Densify Until Iteration</label>
+                <input
+                  type="number"
+                  value={settings.densifyUntilIter}
+                  onChange={(e) => setSettings(s => ({ ...s, densifyUntilIter: Number(e.target.value) }))}
+                  className="input text-sm"
+                  min={1000}
+                  max={50000}
+                  step={1000}
+                />
+                <p className="text-text-muted text-xs mt-1">When to stop adding gaussians</p>
+              </div>
+              <div>
+                <label className="label text-xs">Densification Interval</label>
+                <input
+                  type="number"
+                  value={settings.densificationInterval}
+                  onChange={(e) => setSettings(s => ({ ...s, densificationInterval: Number(e.target.value) }))}
+                  className="input text-sm"
+                  min={50}
+                  max={500}
+                  step={50}
+                />
+                <p className="text-text-muted text-xs mt-1">Iterations between densification</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSettings(DEFAULTS)}
+              className="text-accent-cyan text-xs hover:underline"
+            >
+              Reset to defaults
+            </button>
+          </div>
+        )}
       </div>
 
       <button

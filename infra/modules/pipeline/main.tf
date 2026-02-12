@@ -264,12 +264,6 @@ data "archive_file" "handle_failure" {
   output_path = "${path.module}/handle_failure.zip"
 }
 
-data "archive_file" "update_stage" {
-  type        = "zip"
-  source_file = "${path.module}/../../../services/api/src/handlers/update_stage.py"
-  output_path = "${path.module}/update_stage.zip"
-}
-
 resource "aws_iam_role" "lambda" {
   name = "${var.project}-pipeline-lambda-role"
   tags = var.common_tags
@@ -321,7 +315,7 @@ resource "aws_lambda_function" "extract_frames" {
   source_code_hash = data.archive_file.extract_frames.output_base64sha256
   tags             = var.common_tags
 
-  layers = [aws_lambda_layer_version.ffmpeg.arn]
+  layers = [aws_lambda_layer_version.ffmpeg.arn, aws_lambda_layer_version.shared.arn]
 
   environment {
     variables = {
@@ -346,6 +340,14 @@ resource "aws_lambda_layer_version" "python_deps" {
   description         = "Python dependencies (numpy, plyfile)"
 }
 
+resource "aws_lambda_layer_version" "shared" {
+  filename            = "${path.module}/shared-layer.zip"
+  layer_name          = "${var.project}-shared"
+  compatible_runtimes = ["python3.13", "python3.12", "python3.11"]
+  source_code_hash    = filebase64sha256("${path.module}/shared-layer.zip")
+  description         = "Shared helper functions"
+}
+
 resource "aws_lambda_function" "convert" {
   filename         = data.archive_file.convert.output_path
   function_name    = "${var.project}-convert"
@@ -357,7 +359,7 @@ resource "aws_lambda_function" "convert" {
   source_code_hash = data.archive_file.convert.output_base64sha256
   tags             = var.common_tags
 
-  layers = [aws_lambda_layer_version.python_deps.arn]
+  layers = [aws_lambda_layer_version.python_deps.arn, aws_lambda_layer_version.shared.arn]
 
   environment {
     variables = {
@@ -375,21 +377,6 @@ resource "aws_lambda_function" "handle_failure" {
   runtime          = "python3.13"
   timeout          = 30
   source_code_hash = data.archive_file.handle_failure.output_base64sha256
-  tags             = var.common_tags
-
-  environment {
-    variables = { SCENES_TABLE = var.scenes_table }
-  }
-}
-
-resource "aws_lambda_function" "update_stage" {
-  filename         = data.archive_file.update_stage.output_path
-  function_name    = "${var.project}-update-stage"
-  role             = aws_iam_role.lambda.arn
-  handler          = "update_stage.handler"
-  runtime          = "python3.13"
-  timeout          = 30
-  source_code_hash = data.archive_file.update_stage.output_base64sha256
   tags             = var.common_tags
 
   environment {
@@ -425,8 +412,7 @@ resource "aws_iam_role_policy" "sfn" {
         Resource = [
           aws_lambda_function.extract_frames.arn,
           aws_lambda_function.convert.arn,
-          aws_lambda_function.handle_failure.arn,
-          aws_lambda_function.update_stage.arn
+          aws_lambda_function.handle_failure.arn
         ]
       },
       {
@@ -450,23 +436,8 @@ resource "aws_sfn_state_machine" "pipeline" {
 
   definition = jsonencode({
     Comment = "3DGS Processing Pipeline"
-    StartAt = "CheckIterations"
+    StartAt = "ExtractFrames"
     States = {
-      CheckIterations = {
-        Type    = "Choice"
-        Choices = [{
-          Variable      = "$.iterations"
-          IsPresent     = true
-          Next          = "ExtractFrames"
-        }]
-        Default = "SetDefaultIterations"
-      }
-      SetDefaultIterations = {
-        Type   = "Pass"
-        Result = 7000
-        ResultPath = "$.iterations"
-        Next   = "ExtractFrames"
-      }
       ExtractFrames = {
         Type     = "Task"
         Resource = "arn:aws:states:::lambda:invoke"
@@ -474,21 +445,12 @@ resource "aws_sfn_state_machine" "pipeline" {
           FunctionName = aws_lambda_function.extract_frames.arn
           "Payload.$"  = "$"
         }
-        ResultPath = "$.extractResult"
-        Next       = "SetColmapStage"
-        Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
-      }
-      SetColmapStage = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
-        Parameters = {
-          FunctionName = aws_lambda_function.update_stage.arn
-          Payload = {
-            "sceneId.$" = "$.sceneId"
-            stage       = "running_colmap"
-          }
+        ResultSelector = {
+          "sceneId.$"                = "$.Payload.sceneId"
+          "iterations.$"             = "$.Payload.iterations"
+          "densifyUntilIter.$"       = "$.Payload.densifyUntilIter"
+          "densificationInterval.$"  = "$.Payload.densificationInterval"
         }
-        ResultPath = null
         Next       = "RunCOLMAP"
         Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
       }
@@ -502,25 +464,12 @@ resource "aws_sfn_state_machine" "pipeline" {
           ContainerOverrides = {
             Environment = [
               { Name = "SCENE_ID", "Value.$" = "$.sceneId" },
-              { Name = "BUCKET", Value = var.assets_bucket }
+              { Name = "BUCKET", Value = var.assets_bucket },
+              { Name = "SCENES_TABLE", Value = var.scenes_table }
             ]
           }
         }
         ResultPath = "$.colmapResult"
-        Next       = "Set3dgsStage"
-        Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
-      }
-      Set3dgsStage = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
-        Parameters = {
-          FunctionName = aws_lambda_function.update_stage.arn
-          Payload = {
-            "sceneId.$" = "$.sceneId"
-            stage       = "training_3dgs"
-          }
-        }
-        ResultPath = null
         Next       = "Run3DGS"
         Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
       }
@@ -535,7 +484,10 @@ resource "aws_sfn_state_machine" "pipeline" {
             Environment = [
               { Name = "SCENE_ID", "Value.$" = "$.sceneId" },
               { Name = "BUCKET", Value = var.assets_bucket },
-              { Name = "ITERATIONS", "Value.$" = "States.Format('{}', $.iterations)" }
+              { Name = "SCENES_TABLE", Value = var.scenes_table },
+              { Name = "ITERATIONS", "Value.$" = "States.Format('{}', $.iterations)" },
+              { Name = "DENSIFY_UNTIL_ITER", "Value.$" = "States.Format('{}', $.densifyUntilIter)" },
+              { Name = "DENSIFICATION_INTERVAL", "Value.$" = "States.Format('{}', $.densificationInterval)" }
             ]
           }
         }

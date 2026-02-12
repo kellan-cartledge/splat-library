@@ -62,7 +62,14 @@ export async function createScene(
 }
 
 export async function startProcessing(
-  data: { sceneId: string; videoKey: string },
+  data: { 
+    sceneId: string; 
+    videoKey: string;
+    fps?: number;
+    iterations?: number;
+    densifyUntilIter?: number;
+    densificationInterval?: number;
+  },
   token: string
 ): Promise<{ executionArn: string }> {
   const res = await fetch(`${API}/jobs`, {
@@ -75,4 +82,12 @@ export async function startProcessing(
   });
   if (!res.ok) throw new Error('Failed to start processing');
   return res.json();
+}
+
+export async function deleteScene(id: string, token: string): Promise<void> {
+  const res = await fetch(`${API}/scenes/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error('Failed to delete scene');
 }

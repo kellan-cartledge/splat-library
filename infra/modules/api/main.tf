@@ -78,12 +78,12 @@ resource "aws_iam_role_policy" "lambda" {
       },
       {
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:DeleteObject"]
         Resource = [var.assets_bucket_arn, "${var.assets_bucket_arn}/*"]
       },
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:Scan"]
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan"]
         Resource = [var.scenes_table_arn, "${var.scenes_table_arn}/index/*"]
       },
       {
@@ -237,6 +237,14 @@ resource "aws_apigatewayv2_route" "scenes_get" {
 resource "aws_apigatewayv2_route" "scenes_create" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "POST /scenes"
+  target             = "integrations/${aws_apigatewayv2_integration.scenes.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+resource "aws_apigatewayv2_route" "scenes_delete" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "DELETE /scenes/{id}"
   target             = "integrations/${aws_apigatewayv2_integration.scenes.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id

@@ -12,11 +12,14 @@ Splat Library enables users to upload videos, automatically process them through
 
 ### Features
 
-- **Video Upload** - Upload videos and automatically extract frames
+- **Video Upload** - Upload videos with configurable frame extraction (fps)
 - **COLMAP Processing** - Structure-from-Motion camera pose estimation
-- **3DGS Training** - GPU-accelerated Gaussian Splatting training
+- **3DGS Training** - GPU-accelerated Gaussian Splatting using [gsplat](https://github.com/nerfstudio-project/gsplat)
+- **Advanced Settings** - Configurable iterations, densification parameters
+- **Real-time Status** - 6-stage pipeline progress tracking with live updates
 - **Web Viewer** - Interactive 3D scene viewing in the browser
 - **Scene Gallery** - Browse and share public scenes
+- **Scene Management** - Delete scenes with ownership verification
 - **Authentication** - Secure user authentication with AWS Cognito
 
 ## Architecture
@@ -27,8 +30,9 @@ Splat Library enables users to upload videos, automatically process them through
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
 │  │  React App (S3 + CloudFront)                                           │  │
 │  │  - Cognito Auth                                                        │  │
-│  │  - Video Upload                                                        │  │
+│  │  - Video Upload with Advanced Settings                                 │  │
 │  │  - Scene Gallery                                                       │  │
+│  │  - Processing Status Viewer                                            │  │
 │  │  - Spark Viewer (sparkjsdev/spark)                                     │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -47,11 +51,12 @@ Splat Library enables users to upload videos, automatically process them through
 │                              PIPELINE                                         │
 │  ┌─────────────────────────────────────────────────────────────────────────┐ │
 │  │  Step Functions (with Task Tokens for Batch)                             │ │
-│  │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐            │ │
-│  │  │ Extract   │─▶│ COLMAP    │─▶│ 3DGS      │─▶│ Convert   │            │ │
-│  │  │ Frames    │  │ (Batch)   │  │ (Batch)   │  │ to .splat │            │ │
-│  │  │ (Lambda)  │  │ CPU       │  │ GPU       │  │ (Lambda)  │            │ │
-│  │  └───────────┘  └───────────┘  └───────────┘  └───────────┘            │ │
+│  │                                                                          │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │ │
+│  │  │ Extract  │─▶│ Analyze  │─▶│ Generate │─▶│ Convert  │─▶│ Complete │  │ │
+│  │  │ Frames   │  │ (COLMAP) │  │ (gsplat) │  │ to .splat│  │          │  │ │
+│  │  │ Lambda   │  │ Batch/CPU│  │ Batch/GPU│  │ Lambda   │  │          │  │ │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │ │
 │  └─────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -62,6 +67,7 @@ Splat Library enables users to upload videos, automatically process them through
 │  │ S3              │  │ DynamoDB        │  │ CloudFront      │               │
 │  │ - videos/       │  │ - scenes        │  │ - .splat CDN    │               │
 │  │ - frames/       │  │ - jobs          │  │ - thumbnails    │               │
+│  │ - colmap/       │  │                 │  │                 │               │
 │  │ - outputs/      │  │                 │  │                 │               │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘               │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -75,11 +81,34 @@ Splat Library enables users to upload videos, automatically process them through
 | Auth | Amazon Cognito |
 | API | API Gateway + Lambda (Python 3.13) |
 | Pipeline | Step Functions, AWS Batch |
-| Containers | Python, pycolmap, ECR |
+| 3DGS Engine | [gsplat](https://github.com/nerfstudio-project/gsplat) 1.5.3 |
+| Containers | NVIDIA PyTorch 24.12, pycolmap, ECR |
 | Storage | S3, DynamoDB |
 | CDN | CloudFront |
 | IaC | Terraform |
 | Monorepo | Nx + pnpm |
+
+## Processing Pipeline
+
+The pipeline consists of 6 stages with real-time status updates:
+
+| Stage | Description | Compute |
+|-------|-------------|---------|
+| **Upload** | Video uploaded to S3 | - |
+| **Extract** | Extract frames at configured fps | Lambda |
+| **Analyze** | COLMAP Structure-from-Motion | Batch (CPU) |
+| **Generate** | gsplat 3DGS training | Batch (GPU) |
+| **Convert** | Convert PLY to .splat format | Lambda |
+| **Complete** | Scene ready for viewing | - |
+
+### Training Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `fps` | 3 | Frames per second to extract from video |
+| `iterations` | 30,000 | Training iterations |
+| `densifyUntilIter` | 15,000 | Densification cutoff iteration |
+| `densificationInterval` | 100 | Iterations between densification |
 
 ## Prerequisites
 
@@ -119,12 +148,14 @@ terraform apply
 
 ```bash
 cd containers
-./build.sh
+AWS_REGION=us-west-2 ./build.sh
 ```
+
+**Note:** The gaussian-splatting container builds gsplat from source (~10-15 min). CUDA kernels JIT compile on first Batch job run (~2-3 min additional).
 
 ### 5. Configure Environment
 
-Create `apps/web/.env.local`:
+Create `packages/web/.env.local`:
 
 ```env
 VITE_API_URL=https://<api-gateway-url>
@@ -143,29 +174,47 @@ pnpm dev
 
 ```
 splat-library/
-├── apps/
-│   ├── web/                 # React frontend
+├── packages/
+│   └── web/                 # React frontend
+├── services/
 │   └── api/                 # Lambda handlers
+│       └── src/handlers/
+│           ├── scenes.py    # Scene CRUD operations
+│           ├── jobs.py      # Job status endpoints
+│           ├── extract_frames.py
+│           ├── convert.py
+│           └── handle_failure.py
 ├── containers/
-│   ├── colmap/              # COLMAP container
-│   └── gaussian-splatting/  # 3DGS training container
+│   ├── colmap/              # COLMAP container (pycolmap)
+│   └── gaussian-splatting/  # gsplat training container
+│       ├── Dockerfile       # NVIDIA PyTorch 24.12 + gsplat from source
+│       └── run.py           # Training script
 ├── infra/                   # Terraform infrastructure
 │   └── modules/
 │       ├── cognito/
 │       ├── storage/
+│       ├── api/
 │       └── pipeline/
-└── docs/
+└── .kiro/
     └── specs/               # Technical specifications
 ```
 
-## Available Scripts
+## Container Details
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start web development server |
-| `pnpm build` | Build all packages |
-| `pnpm nx show projects` | List all projects |
-| `pnpm deploy:infra` | Deploy Terraform infrastructure |
+### COLMAP Container
+- Base: `colmap/colmap:latest`
+- Runs Structure-from-Motion to estimate camera poses
+- Outputs sparse reconstruction to S3
+
+### Gaussian Splatting Container
+- Base: `nvcr.io/nvidia/pytorch:24.12-py3` (PyTorch 2.6 + CUDA 12.6)
+- gsplat 1.5.3 built from source for compatibility
+- Custom training loop with:
+  - COLMAP binary file parsing
+  - Scene normalization
+  - Spherical harmonics (degree 3)
+  - Adaptive densification strategy
+  - PLY export in 3DGS format
 
 ## API Endpoints
 
@@ -175,6 +224,8 @@ splat-library/
 | POST | /scenes | Yes | Create scene and start pipeline |
 | GET | /scenes | No | List public completed scenes |
 | GET | /scenes/{id} | No | Get scene details |
+| DELETE | /scenes/{id} | Yes | Delete scene (owner only) |
+| GET | /scenes/{id}/status | No | Get processing status |
 
 ## Configuration
 
@@ -220,6 +271,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) - Original 3DGS implementation
+- [gsplat](https://github.com/nerfstudio-project/gsplat) - High-performance 3DGS library by nerfstudio
 - [COLMAP](https://colmap.github.io/) - Structure-from-Motion pipeline
 - [pycolmap](https://github.com/colmap/colmap) - Python bindings for COLMAP
+- [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) - Original 3DGS paper implementation

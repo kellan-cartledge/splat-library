@@ -25,8 +25,7 @@ def handler(event, context):
                 Params={
                     'Bucket': BUCKET,
                     'Key': key,
-                    'ContentType': f.get('contentType', 'image/jpeg'),
-                    'ContentLength': MAX_IMAGE_SIZE
+                    'ContentType': f.get('contentType', 'image/jpeg')
                 },
                 ExpiresIn=3600
             )

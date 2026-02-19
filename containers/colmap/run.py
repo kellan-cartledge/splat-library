@@ -43,7 +43,12 @@ def send_failure(error: str, stage: str = 'running_colmap'):
 
 def run_colmap(args, stage_name):
     try:
-        subprocess.run(['colmap'] + args, check=True, capture_output=True, text=True)
+        result = subprocess.run(['colmap'] + args, check=True, capture_output=True, text=True)
+        if result.stdout:
+            # Print last 20 lines of stdout for debugging
+            lines = result.stdout.strip().split('\n')
+            for line in lines[-20:]:
+                print(f"  {line}")
     except subprocess.CalledProcessError as e:
         print(f"COLMAP {stage_name} stderr: {e.stderr}", file=sys.stderr)
         send_failure(e.stderr or str(e), stage_name)
@@ -103,6 +108,20 @@ def main():
         # Verify reconstruction was produced
         if not any(output_dir.iterdir()):
             raise RuntimeError("No valid reconstruction produced")
+        
+        # Pick the best reconstruction (largest points3D.bin) and move to sparse/0/
+        recon_dirs = sorted(output_dir.iterdir(), key=lambda d: (d / 'points3D.bin').stat().st_size if (d / 'points3D.bin').exists() else 0, reverse=True)
+        best = recon_dirs[0]
+        if best.name != '0':
+            import shutil
+            shutil.rmtree(output_dir / '0')
+            best.rename(output_dir / '0')
+            print(f"Selected reconstruction {best.name} as best (moved to sparse/0/)")
+        # Clean up other reconstructions
+        for d in output_dir.iterdir():
+            if d.name != '0' and d.is_dir():
+                import shutil
+                shutil.rmtree(d)
         
         print("Reconstruction complete")
         

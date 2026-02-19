@@ -8,7 +8,7 @@ A scalable 3D Gaussian Splatting creation pipeline and viewer library on AWS.
 
 ## Overview
 
-Splat Library enables users to upload videos, automatically process them through COLMAP and 3D Gaussian Splatting training, and view/share the resulting 3D scenes in a web-based gallery.
+Splat Library transforms ordinary videos into stunning, interactive 3D scenes — no 3D expertise required. Simply upload a video, and our fully automated cloud pipeline handles the rest: extracting frames, reconstructing camera geometry with COLMAP, training a 3D Gaussian Splatting model on GPU-accelerated infrastructure, and delivering a web-ready `.splat` file you can explore, share, and embed in seconds. Built on a serverless AWS architecture with real-time progress tracking, Splat Library makes photorealistic 3D capture as easy as pressing record.
 
 ### Features
 
@@ -24,54 +24,31 @@ Splat Library enables users to upload videos, automatically process them through
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                 FRONTEND                                      │
-│  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │  React App (S3 + CloudFront)                                           │  │
-│  │  - Cognito Auth                                                        │  │
-│  │  - Video Upload with Advanced Settings                                 │  │
-│  │  - Scene Gallery                                                       │  │
-│  │  - Processing Status Viewer                                            │  │
-│  │  - Spark Viewer (sparkjsdev/spark)                                     │  │
-│  └────────────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                   API                                         │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐               │
-│  │ API Gateway     │  │ Lambda          │  │ S3 Presigned    │               │
-│  │ (REST)          │──│ (Python 3.13)   │──│ URLs            │               │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘               │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              PIPELINE                                         │
-│  ┌─────────────────────────────────────────────────────────────────────────┐ │
-│  │  Step Functions (with Task Tokens for Batch)                             │ │
-│  │                                                                          │ │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │ │
-│  │  │ Extract  │─▶│ Analyze  │─▶│ Generate │─▶│ Convert  │─▶│ Complete │  │ │
-│  │  │ Frames   │  │ (COLMAP) │  │ (gsplat) │  │ to .splat│  │          │  │ │
-│  │  │ Lambda   │  │ Batch/CPU│  │ Batch/GPU│  │ Lambda   │  │          │  │ │
-│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │ │
-│  └─────────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              STORAGE                                          │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐               │
-│  │ S3              │  │ DynamoDB        │  │ CloudFront      │               │
-│  │ - videos/       │  │ - scenes        │  │ - .splat CDN    │               │
-│  │ - frames/       │  │ - jobs          │  │ - thumbnails    │               │
-│  │ - colmap/       │  │                 │  │                 │               │
-│  │ - outputs/      │  │                 │  │                 │               │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘               │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+![Splat Library Architecture](docs/diagrams/splat-library-architecture.jpg)
+
+### How It Works
+
+1. **Users** — Users access the Splat Library from their browser to upload videos, track processing progress, and explore completed 3D scenes in an interactive viewer.
+
+2. **Frontend Delivery** — A React single-page app is hosted in S3 and served globally through CloudFront, which also proxies API requests and delivers processed `.splat` files.
+
+3. **API Gateway** — An HTTP API routes requests to the backend. Write operations (create, delete) require Cognito JWT authentication; read operations are public.
+
+4. **Lambda API Handlers** — Three Lambda functions handle the API logic: `scenes` (CRUD), `upload` (S3 presigned URLs for direct video upload), and `jobs` (pipeline status and execution).
+
+5. **Storage** — An S3 bucket stores all assets organized by prefix (`videos/`, `frames/`, `colmap/`, `outputs/`). DynamoDB tracks scene metadata and job status.
+
+6. **Pipeline Orchestration** — Step Functions orchestrates the processing pipeline as a state machine with automatic error handling that routes failures to a dedicated handler.
+
+7. **Extract Frames** — A Lambda function with an FFmpeg layer extracts video frames at the configured fps rate and writes them to S3.
+
+8. **COLMAP** — An AWS Batch job runs COLMAP on CPU instances to perform Structure-from-Motion, estimating camera poses from the extracted frames.
+
+9. **Gaussian Splatting** — An AWS Batch job trains a 3D Gaussian Splatting model on GPU Spot instances using gsplat, producing a PLY point cloud.
+
+10. **Convert Splat** — A Lambda function converts the PLY output to `.splat` format for web viewing and marks the scene as complete in DynamoDB.
+
+11. **Management and Observability** — IAM provides least-privilege access control, CloudWatch collects logs for debugging, and X-Ray enables distributed tracing across the pipeline.
 
 ## Tech Stack
 

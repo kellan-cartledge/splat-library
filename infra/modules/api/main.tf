@@ -99,19 +99,19 @@ resource "aws_iam_role_policy" "lambda" {
 data "archive_file" "upload" {
   type        = "zip"
   source_file = "${path.module}/../../../services/api/src/handlers/upload.py"
-  output_path = "${path.module}/upload.zip"
+  output_path = "${path.module}/dist/upload.zip"
 }
 
 data "archive_file" "scenes" {
   type        = "zip"
   source_file = "${path.module}/../../../services/api/src/handlers/scenes.py"
-  output_path = "${path.module}/scenes.zip"
+  output_path = "${path.module}/dist/scenes.zip"
 }
 
 data "archive_file" "jobs" {
   type        = "zip"
   source_file = "${path.module}/../../../services/api/src/handlers/jobs.py"
-  output_path = "${path.module}/jobs.zip"
+  output_path = "${path.module}/dist/jobs.zip"
 }
 
 resource "aws_lambda_function" "upload" {

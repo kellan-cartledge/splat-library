@@ -249,19 +249,19 @@ resource "aws_batch_job_definition" "gaussian_splatting" {
 data "archive_file" "extract_frames" {
   type        = "zip"
   source_file = "${path.module}/../../../services/api/src/handlers/extract_frames.py"
-  output_path = "${path.module}/extract_frames.zip"
+  output_path = "${path.module}/dist/extract_frames.zip"
 }
 
 data "archive_file" "convert" {
   type        = "zip"
   source_file = "${path.module}/../../../services/api/src/handlers/convert.py"
-  output_path = "${path.module}/convert.zip"
+  output_path = "${path.module}/dist/convert.zip"
 }
 
 data "archive_file" "handle_failure" {
   type        = "zip"
   source_file = "${path.module}/../../../services/api/src/handlers/handle_failure.py"
-  output_path = "${path.module}/handle_failure.zip"
+  output_path = "${path.module}/dist/handle_failure.zip"
 }
 
 resource "aws_iam_role" "lambda" {
@@ -326,25 +326,25 @@ resource "aws_lambda_function" "extract_frames" {
 }
 
 resource "aws_lambda_layer_version" "ffmpeg" {
-  filename            = "${path.module}/ffmpeg-layer.zip"
+  filename            = "${path.module}/dist/ffmpeg-layer.zip"
   layer_name          = "${var.project}-ffmpeg"
   compatible_runtimes = ["python3.13", "python3.12", "python3.11"]
   description         = "FFmpeg static binary for video processing"
 }
 
 resource "aws_lambda_layer_version" "python_deps" {
-  filename            = "${path.module}/python-deps-layer.zip"
+  filename            = "${path.module}/dist/python-deps-layer.zip"
   layer_name          = "${var.project}-python-deps"
   compatible_runtimes = ["python3.13", "python3.12", "python3.11"]
-  source_code_hash    = filebase64sha256("${path.module}/python-deps-layer.zip")
+  source_code_hash    = filebase64sha256("${path.module}/dist/python-deps-layer.zip")
   description         = "Python dependencies (numpy, plyfile)"
 }
 
 resource "aws_lambda_layer_version" "shared" {
-  filename            = "${path.module}/shared-layer.zip"
+  filename            = "${path.module}/dist/shared-layer.zip"
   layer_name          = "${var.project}-shared"
   compatible_runtimes = ["python3.13", "python3.12", "python3.11"]
-  source_code_hash    = filebase64sha256("${path.module}/shared-layer.zip")
+  source_code_hash    = filebase64sha256("${path.module}/dist/shared-layer.zip")
   description         = "Shared helper functions"
 }
 

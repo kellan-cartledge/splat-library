@@ -46,6 +46,9 @@ infra/*.tfstate.*
 infra/.terraform.lock.hcl
 infra/terraform.tfvars
 
+# Lambda build artifacts
+infra/modules/**/dist/
+
 # Python
 __pycache__/
 *.pyc

@@ -21,11 +21,8 @@ def handler(event, context):
     local_ply = f'/tmp/{scene_id}.ply'
     s3.download_file(BUCKET, ply_key, local_ply)
     
-    local_splat = f'/tmp/{scene_id}.splat'
-    convert_ply_to_splat(local_ply, local_splat)
-    
-    splat_key = f'outputs/{scene_id}/scene.splat'
-    s3.upload_file(local_splat, BUCKET, splat_key)
+    splat_key = f'outputs/{scene_id}/scene.ply'
+    s3.upload_file(local_ply, BUCKET, splat_key)
     
     thumbnail_key = f'outputs/{scene_id}/thumbnail.jpg'
     s3.copy_object(

@@ -24,7 +24,7 @@ resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = merge(var.common_tags, { Name = "${var.project}-vpc" })
+  tags                 = merge(var.common_tags, { Name = "${var.project}-vpc" })
 }
 
 resource "aws_subnet" "private" {
@@ -32,14 +32,14 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.${count.index + 1}.0/24"
   availability_zone = data.aws_availability_zones.available.names[count.index]
-  tags = merge(var.common_tags, { Name = "${var.project}-private-${count.index + 1}" })
+  tags              = merge(var.common_tags, { Name = "${var.project}-private-${count.index + 1}" })
 }
 
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.100.0/24"
   map_public_ip_on_launch = true
-  tags = merge(var.common_tags, { Name = "${var.project}-public" })
+  tags                    = merge(var.common_tags, { Name = "${var.project}-public" })
 }
 
 resource "aws_security_group" "batch" {
@@ -407,8 +407,8 @@ resource "aws_iam_role_policy" "sfn" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["lambda:InvokeFunction"]
+        Effect = "Allow"
+        Action = ["lambda:InvokeFunction"]
         Resource = [
           aws_lambda_function.extract_frames.arn,
           aws_lambda_function.convert.arn,
@@ -446,13 +446,13 @@ resource "aws_sfn_state_machine" "pipeline" {
           "Payload.$"  = "$"
         }
         ResultSelector = {
-          "sceneId.$"                = "$.Payload.sceneId"
-          "iterations.$"             = "$.Payload.iterations"
-          "densifyUntilIter.$"       = "$.Payload.densifyUntilIter"
-          "densificationInterval.$"  = "$.Payload.densificationInterval"
+          "sceneId.$"               = "$.Payload.sceneId"
+          "iterations.$"            = "$.Payload.iterations"
+          "densifyUntilIter.$"      = "$.Payload.densifyUntilIter"
+          "densificationInterval.$" = "$.Payload.densificationInterval"
         }
-        Next       = "RunCOLMAP"
-        Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
+        Next  = "RunCOLMAP"
+        Catch = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
       }
       RunCOLMAP = {
         Type     = "Task"

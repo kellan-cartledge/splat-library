@@ -62,7 +62,7 @@ export default function HomePage() {
         <div className="grid md:grid-cols-3 gap-6">
           {[
             { icon: '⚡', title: 'Fast Processing', desc: 'GPU-accelerated pipeline with AWS Batch', color: 'accent-yellow' },
-            { icon: '🎯', title: 'High Quality', desc: 'State-of-the-art COLMAP + 3DGS', color: 'accent-cyan' },
+            { icon: '🎯', title: 'High Quality', desc: 'State-of-the-art SfM + 3DGS', color: 'accent-cyan' },
             { icon: '🌐', title: 'Web Viewer', desc: 'Interactive 3D viewing in browser', color: 'accent-purple' },
           ].map((feature, i) => (
             <div key={i} className={`card p-6 animate-fade-up opacity-0 stagger-${i + 2}`}>

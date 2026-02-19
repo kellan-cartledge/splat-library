@@ -12,8 +12,8 @@ interface UploadProgressProps {
 const PIPELINE_STAGES = [
   { key: 'uploading', label: 'Upload', description: 'Uploading video...' },
   { key: 'extracting_frames', label: 'Extract', description: 'Extracting frames from video...' },
-  { key: 'running_colmap', label: 'COLMAP', description: 'Running structure from motion...' },
-  { key: 'training_3dgs', label: 'Training', description: 'Training 3D Gaussian Splat...' },
+  { key: 'running_colmap', label: 'Analyze', description: 'Analyzing camera positions...' },
+  { key: 'training_3dgs', label: 'Generate', description: 'Generating 3D Gaussian Splat...' },
   { key: 'converting', label: 'Convert', description: 'Converting to viewable format...' },
   { key: 'completed', label: 'Done', description: 'Processing complete!' },
 ];

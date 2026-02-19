@@ -114,6 +114,21 @@ def qvec_to_rotmat(qvec):
     ])
 
 
+def _fused_ssim(img1, img2, window_size=11):
+    """Compute SSIM between two [B,C,H,W] tensors."""
+    C = img1.shape[1]
+    window = torch.ones(C, 1, window_size, window_size, device=img1.device) / (window_size * window_size)
+    mu1 = F.conv2d(img1, window, groups=C, padding=window_size // 2)
+    mu2 = F.conv2d(img2, window, groups=C, padding=window_size // 2)
+    mu1_sq, mu2_sq, mu1_mu2 = mu1 * mu1, mu2 * mu2, mu1 * mu2
+    sigma1_sq = F.conv2d(img1 * img1, window, groups=C, padding=window_size // 2) - mu1_sq
+    sigma2_sq = F.conv2d(img2 * img2, window, groups=C, padding=window_size // 2) - mu2_sq
+    sigma12 = F.conv2d(img1 * img2, window, groups=C, padding=window_size // 2) - mu1_mu2
+    C1, C2 = 0.01 ** 2, 0.03 ** 2
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+    return ssim_map.mean()
+
+
 def export_ply(path: str, means, scales, quats, opacities, sh0, shN):
     means = means.detach().cpu().numpy()
     scales = scales.detach().cpu().numpy()
@@ -136,7 +151,9 @@ def export_ply(path: str, means, scales, quats, opacities, sh0, shN):
     elements['x'], elements['y'], elements['z'] = means[:, 0], means[:, 1], means[:, 2]
     elements['nx'] = elements['ny'] = elements['nz'] = 0
     elements['f_dc_0'], elements['f_dc_1'], elements['f_dc_2'] = sh0[:, 0, 0], sh0[:, 0, 1], sh0[:, 0, 2]
-    sh_rest = shN.reshape(n, -1)
+    # Transpose SH rest from [N, K, 3] (interleaved RGB) to [N, 3*K] (all R, all G, all B)
+    # Standard 3DGS PLY format: f_rest_0..14 = R coeffs, f_rest_15..29 = G, f_rest_30..44 = B
+    sh_rest = shN.transpose(0, 2, 1).reshape(n, -1)  # [N, K, 3] -> [N, 3, K] -> [N, 3*K]
     for i in range(sh_rest.shape[1]):
         elements[f'f_rest_{i}'] = sh_rest[:, i]
     elements['opacity'] = opacities
@@ -226,29 +243,47 @@ def train_gsplat(input_dir: Path, output_dir: Path):
     }
     
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizers['means'], gamma=0.01 ** (1.0 / ITERATIONS))
-    strategy = DefaultStrategy(refine_start_iter=500, refine_stop_iter=DENSIFY_UNTIL, refine_every=DENSIFY_INTERVAL, verbose=False)
+    strategy = DefaultStrategy(refine_start_iter=500, refine_stop_iter=DENSIFY_UNTIL, refine_every=DENSIFY_INTERVAL,
+                               absgrad=True, grow_grad2d=0.0008, revised_opacity=True, verbose=False)
     strategy_state = strategy.initialize_state(scene_scale=1.0)
     
     print(f"Starting training: {ITERATIONS} iterations, {N} initial gaussians")
     
+    # Pre-load all training data to GPU to avoid CPU->GPU transfer each step
+    gpu_data = []
+    for d in train_data:
+        gpu_data.append({
+            'c2w': torch.from_numpy(d['c2w']).to(device)[None],
+            'K': torch.from_numpy(d['K']).to(device)[None],
+            'pixels': torch.from_numpy(d['image']).to(device)[None],
+            'height': int(d['height']), 'width': int(d['width']),
+        })
+    
     for step in range(ITERATIONS):
-        data = train_data[step % len(train_data)]
-        c2w = torch.from_numpy(data['c2w']).to(device)[None]
-        K = torch.from_numpy(data['K']).to(device)[None]
-        pixels = torch.from_numpy(data['image']).to(device)[None]
-        height, width = int(data['height']), int(data['width'])
+        data = gpu_data[step % len(gpu_data)]
+        c2w, K, pixels = data['c2w'], data['K'], data['pixels']
+        height, width = data['height'], data['width']
         
         sh_degree_to_use = min(step // 1000, sh_degree)
         colors_sh = torch.cat([splats['sh0'], splats['shN']], 1)
         
         renders, alphas, info = rasterization(
-            means=splats['means'], quats=F.normalize(splats['quats'], dim=-1),
+            means=splats['means'], quats=splats['quats'],
             scales=torch.exp(splats['scales']), opacities=torch.sigmoid(splats['opacities']),
             colors=colors_sh, viewmats=torch.linalg.inv(c2w), Ks=K,
             width=width, height=height, sh_degree=sh_degree_to_use,
+            near_plane=0.01, far_plane=1e10, packed=True, absgrad=True,
         )
         
-        loss = F.l1_loss(renders.clamp(0, 1), pixels)
+        renders_clamped = renders.clamp(0, 1)
+        l1loss = F.l1_loss(renders_clamped, pixels)
+        # SSIM loss: permute to [B, C, H, W] for conv2d
+        renders_perm = renders_clamped.permute(0, 3, 1, 2)
+        pixels_perm = pixels.permute(0, 3, 1, 2)
+        ssimloss = 1.0 - _fused_ssim(renders_perm, pixels_perm)
+        loss = l1loss * 0.8 + ssimloss * 0.2
+        # Opacity regularization to push unused gaussians toward transparent
+        loss = loss + 0.01 * torch.sigmoid(splats['opacities']).mean()
         strategy.step_pre_backward(params=splats, optimizers=optimizers, state=strategy_state, step=step, info=info)
         loss.backward()
         
@@ -256,16 +291,21 @@ def train_gsplat(input_dir: Path, output_dir: Path):
             opt.step()
             opt.zero_grad(set_to_none=True)
         scheduler.step()
-        strategy.step_post_backward(params=splats, optimizers=optimizers, state=strategy_state, step=step, info=info, packed=False)
+        strategy.step_post_backward(params=splats, optimizers=optimizers, state=strategy_state, step=step, info=info, packed=True)
         
         if step % 2000 == 0:
             print(f"Step {step}/{ITERATIONS}, Loss: {loss.item():.4f}, Gaussians: {len(splats['means'])}")
     
     print(f"Training complete. Final gaussians: {len(splats['means'])}")
     
+    # Cull low-opacity gaussians before export
+    with torch.no_grad():
+        keep = torch.sigmoid(splats['opacities']) > 0.01
+        print(f"Culling {(~keep).sum().item()} low-opacity gaussians, keeping {keep.sum().item()}")
+    
     ply_dir = output_dir / 'point_cloud' / f'iteration_{ITERATIONS}'
     ply_dir.mkdir(parents=True, exist_ok=True)
-    export_ply(str(ply_dir / 'point_cloud.ply'), splats['means'], splats['scales'], splats['quats'], splats['opacities'], splats['sh0'], splats['shN'])
+    export_ply(str(ply_dir / 'point_cloud.ply'), splats['means'][keep], splats['scales'][keep], splats['quats'][keep], splats['opacities'][keep], splats['sh0'][keep], splats['shN'][keep])
     print(f"Saved PLY to {ply_dir / 'point_cloud.ply'}")
 
 

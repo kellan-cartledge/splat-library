@@ -33,8 +33,6 @@ export default function SplatViewer({ splatKey }: SplatViewerProps) {
     const splatUrl = `${config.cdnUrl}/${splatKey}`;
 
     const splat = new SplatMesh({ url: splatUrl });
-    // Rotate 180° around X-axis to convert from OpenCV to OpenGL coordinates
-    splat.quaternion.set(1, 0, 0, 0);
     scene.add(splat);
     setLoading(false);
 

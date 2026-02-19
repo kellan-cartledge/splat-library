@@ -93,11 +93,18 @@ def run_training(data_dir: Path, output_dir: Path, num_images: int):
     ]
     if num_images > 500:
         args += ['--pipeline.datamanager.cache-images', 'disk']
+    # Check if points3D.bin is empty (header-only = 8 bytes); use random init if so
+    points_file = data_dir / 'colmap' / 'sparse' / '0' / 'points3D.bin'
+    empty_points = points_file.exists() and points_file.stat().st_size <= 8
+    if empty_points:
+        print("WARNING: points3D.bin is empty, using random initialization")
     args += [
         'colmap',
         '--data', str(data_dir),
         '--downscale-factor', '1',
     ]
+    if empty_points:
+        args += ['--load-3D-points', 'False']
     print(f"Running: {' '.join(args)}")
     subprocess.run(args, check=True)
 

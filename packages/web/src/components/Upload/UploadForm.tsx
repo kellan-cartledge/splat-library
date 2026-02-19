@@ -1,12 +1,15 @@
 import { useState, useCallback, useRef } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { getUploadUrl, createScene, startProcessing } from '../../api/client';
+import { getUploadUrl, getImageUploadUrls, createScene, startProcessing } from '../../api/client';
+
+type InputType = 'video' | 'images';
 
 interface UploadFormProps {
   onUploadStart: (state: {
     sceneId: string | null;
     status: 'uploading' | 'processing' | 'error';
     progress: number;
+    inputType?: InputType;
   }) => void;
 }
 
@@ -17,53 +20,99 @@ const DEFAULTS = {
   densificationInterval: 100
 };
 
+const IMAGE_ACCEPT = '.jpg,.jpeg,.png';
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
+const UPLOAD_CONCURRENCY = 5;
+
 export default function UploadForm({ onUploadStart }: UploadFormProps) {
+  const [inputType, setInputType] = useState<InputType>('video');
   const [name, setName] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [settings, setSettings] = useState(DEFAULTS);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const handleImageFiles = useCallback((files: FileList | File[]) => {
+    const valid = Array.from(files).filter(f => {
+      const ext = f.name.toLowerCase();
+      return (ext.endsWith('.jpg') || ext.endsWith('.jpeg') || ext.endsWith('.png')) && f.size <= MAX_IMAGE_SIZE;
+    });
+    setImageFiles(prev => [...prev, ...valid]);
+  }, []);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile?.type.startsWith('video/')) {
-      setFile(droppedFile);
+    if (inputType === 'images') {
+      handleImageFiles(e.dataTransfer.files);
+    } else {
+      const droppedFile = e.dataTransfer.files[0];
+      if (droppedFile?.type.startsWith('video/')) setFile(droppedFile);
     }
-  }, []);
+  }, [inputType, handleImageFiles]);
+
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !name) return;
+    const hasFiles = inputType === 'video' ? !!file : imageFiles.length > 0;
+    if (!hasFiles || !name) return;
 
     setIsSubmitting(true);
 
     try {
       const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
+      const token = session.tokens?.idToken?.toString()!;
 
-      const { sceneId, uploadUrl, key } = await getUploadUrl(file.name, file.type, token!);
-      
-      onUploadStart({ sceneId, status: 'uploading', progress: 0 });
+      if (inputType === 'images') {
+        const files = imageFiles.map(f => ({ filename: f.name, contentType: f.type || 'image/jpeg' }));
+        const { sceneId, uploads } = await getImageUploadUrls(files, token);
 
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type }
-      });
+        onUploadStart({ sceneId, status: 'uploading', progress: 0, inputType: 'images' });
 
-      await createScene({ sceneId, name, videoKey: key }, token!);
-      await startProcessing({ sceneId, videoKey: key, ...settings }, token!);
+        // Parallel upload with concurrency limit
+        let completed = 0;
+        const total = uploads.length;
+        const queue = uploads.map((u, i) => async () => {
+          await fetch(u.uploadUrl, {
+            method: 'PUT',
+            body: imageFiles[i],
+            headers: { 'Content-Type': imageFiles[i].type || 'image/jpeg' }
+          });
+          completed++;
+          onUploadStart({ sceneId, status: 'uploading', progress: Math.round((completed / total) * 100), inputType: 'images' });
+        });
 
-      onUploadStart({ sceneId, status: 'processing', progress: 100 });
+        // Process in batches
+        for (let i = 0; i < queue.length; i += UPLOAD_CONCURRENCY) {
+          await Promise.all(queue.slice(i, i + UPLOAD_CONCURRENCY).map(fn => fn()));
+        }
+
+        await createScene({ sceneId, name, inputType: 'images' }, token);
+        await startProcessing({ sceneId, inputType: 'images', ...settings }, token);
+        onUploadStart({ sceneId, status: 'processing', progress: 100, inputType: 'images' });
+      } else {
+        const { sceneId, uploadUrl, key } = await getUploadUrl(file!.name, file!.type, token);
+        onUploadStart({ sceneId, status: 'uploading', progress: 0, inputType: 'video' });
+
+        await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file!.type } });
+        await createScene({ sceneId, name, videoKey: key, inputType: 'video' }, token);
+        await startProcessing({ sceneId, inputType: 'video', videoKey: key, ...settings }, token);
+        onUploadStart({ sceneId, status: 'processing', progress: 100, inputType: 'video' });
+      }
     } catch (error) {
       console.error('Upload failed:', error);
       onUploadStart({ sceneId: null, status: 'error', progress: 0 });
     }
-  }, [file, name, settings, onUploadStart]);
+  }, [file, imageFiles, name, settings, inputType, onUploadStart]);
+
+  const totalImageSize = imageFiles.reduce((sum, f) => sum + f.size, 0);
+  const hasFiles = inputType === 'video' ? !!file : imageFiles.length > 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -79,8 +128,27 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
         />
       </div>
 
+      {/* Input Type Toggle */}
+      <div className="flex gap-2 p-1 bg-surface-overlay rounded-lg border border-surface-border">
+        {(['video', 'images'] as const).map(type => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => { setInputType(type); setFile(null); setImageFiles([]); }}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+              inputType === type
+                ? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30'
+                : 'text-text-muted hover:text-text-secondary'
+            }`}
+          >
+            {type === 'video' ? '🎬 Video' : '🖼️ Images'}
+          </button>
+        ))}
+      </div>
+
+      {/* File Drop Zone */}
       <div>
-        <label className="label">Video File</label>
+        <label className="label">{inputType === 'video' ? 'Video File' : 'Image Files'}</label>
         <div
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -89,23 +157,30 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
           className={`
             relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
             transition-all duration-200
-            ${isDragging 
-              ? 'border-accent-cyan bg-accent-cyan/5' 
+            ${isDragging
+              ? 'border-accent-cyan bg-accent-cyan/5'
               : 'border-surface-border hover:border-accent-cyan/50 hover:bg-surface-overlay/50'
             }
-            ${file ? 'border-accent-green bg-accent-green/5' : ''}
+            ${hasFiles ? 'border-accent-green bg-accent-green/5' : ''}
           `}
         >
           <input
             ref={inputRef}
             type="file"
-            accept="video/*"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            accept={inputType === 'video' ? 'video/*' : IMAGE_ACCEPT}
+            multiple={inputType === 'images'}
+            onChange={(e) => {
+              if (inputType === 'images') {
+                if (e.target.files) handleImageFiles(e.target.files);
+              } else {
+                setFile(e.target.files?.[0] || null);
+              }
+              e.target.value = '';
+            }}
             className="hidden"
-            required
           />
-          
-          {file ? (
+
+          {inputType === 'video' && file ? (
             <div className="space-y-2">
               <div className="w-12 h-12 mx-auto rounded-full bg-accent-green/10 border border-accent-green/20 flex items-center justify-center">
                 <svg className="w-6 h-6 text-accent-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,6 +190,20 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
               <p className="font-mono text-accent-green text-sm">{file.name}</p>
               <p className="text-text-muted text-xs">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
             </div>
+          ) : inputType === 'images' && imageFiles.length > 0 ? (
+            <div className="space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full bg-accent-green/10 border border-accent-green/20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-accent-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="font-mono text-accent-green text-sm">{imageFiles.length} images selected</p>
+              <p className="text-text-muted text-xs">{(totalImageSize / 1024 / 1024).toFixed(1)} MB total</p>
+              {imageFiles.length < 20 && (
+                <p className="text-accent-yellow text-xs">⚠ Fewer than 20 images — COLMAP works best with 20+ images for good reconstruction</p>
+              )}
+              <p className="text-text-muted text-xs">Click or drop to add more</p>
+            </div>
           ) : (
             <div className="space-y-3">
               <div className="w-12 h-12 mx-auto rounded-full bg-surface-overlay border border-surface-border flex items-center justify-center">
@@ -123,13 +212,34 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
                 </svg>
               </div>
               <div>
-                <p className="text-text-primary">Drop your video here or click to browse</p>
-                <p className="text-text-muted text-sm mt-1">MP4, MOV, or WebM • 30-60 seconds recommended</p>
+                <p className="text-text-primary">
+                  {inputType === 'video'
+                    ? 'Drop your video here or click to browse'
+                    : 'Drop your images here or click to browse'}
+                </p>
+                <p className="text-text-muted text-sm mt-1">
+                  {inputType === 'video'
+                    ? 'MP4, MOV, or WebM • 30-60 seconds recommended'
+                    : 'JPG or PNG • 50MB max per image • 20+ images recommended'}
+                </p>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Image file list */}
+      {inputType === 'images' && imageFiles.length > 0 && (
+        <div className="max-h-40 overflow-y-auto space-y-1 text-xs">
+          {imageFiles.map((f, i) => (
+            <div key={`${f.name}-${i}`} className="flex items-center justify-between px-3 py-1.5 bg-surface-overlay rounded">
+              <span className="text-text-secondary font-mono truncate flex-1">{f.name}</span>
+              <span className="text-text-muted mx-2">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+              <button type="button" onClick={() => removeImage(i)} className="text-text-muted hover:text-accent-red">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Advanced Settings */}
       <div className="border border-surface-border rounded-lg overflow-hidden">
@@ -143,22 +253,23 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        
+
         {showAdvanced && (
           <div className="p-4 space-y-4 border-t border-surface-border">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label text-xs">Frame Rate (fps)</label>
-                <input
-                  type="number"
-                  value={settings.fps}
-                  onChange={(e) => setSettings(s => ({ ...s, fps: Number(e.target.value) }))}
-                  className="input text-sm"
-                  min={1}
-                  max={10}
-                />
-                <p className="text-text-muted text-xs mt-1">Frames extracted per second</p>
-              </div>
+            <div className={`grid ${inputType === 'video' ? 'grid-cols-2' : 'grid-cols-2'} gap-4`}>
+              {inputType === 'video' && (
+                <div>
+                  <label className="label text-xs">Frame Rate (fps)</label>
+                  <input
+                    type="number"
+                    value={settings.fps}
+                    onChange={(e) => setSettings(s => ({ ...s, fps: Number(e.target.value) }))}
+                    className="input text-sm"
+                    min={1} max={10}
+                  />
+                  <p className="text-text-muted text-xs mt-1">Frames extracted per second</p>
+                </div>
+              )}
               <div>
                 <label className="label text-xs">Training Iterations</label>
                 <input
@@ -166,9 +277,7 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
                   value={settings.iterations}
                   onChange={(e) => setSettings(s => ({ ...s, iterations: Number(e.target.value) }))}
                   className="input text-sm"
-                  min={1000}
-                  max={100000}
-                  step={1000}
+                  min={1000} max={100000} step={1000}
                 />
                 <p className="text-text-muted text-xs mt-1">More = better quality, slower</p>
               </div>
@@ -179,9 +288,7 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
                   value={settings.densifyUntilIter}
                   onChange={(e) => setSettings(s => ({ ...s, densifyUntilIter: Number(e.target.value) }))}
                   className="input text-sm"
-                  min={1000}
-                  max={50000}
-                  step={1000}
+                  min={1000} max={50000} step={1000}
                 />
                 <p className="text-text-muted text-xs mt-1">When to stop adding gaussians</p>
               </div>
@@ -192,9 +299,7 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
                   value={settings.densificationInterval}
                   onChange={(e) => setSettings(s => ({ ...s, densificationInterval: Number(e.target.value) }))}
                   className="input text-sm"
-                  min={50}
-                  max={500}
-                  step={50}
+                  min={50} max={500} step={50}
                 />
                 <p className="text-text-muted text-xs mt-1">Iterations between densification</p>
               </div>
@@ -212,7 +317,7 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
 
       <button
         type="submit"
-        disabled={isSubmitting || !file || !name}
+        disabled={isSubmitting || !hasFiles || !name}
         className="w-full btn-primary py-3 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isSubmitting ? (

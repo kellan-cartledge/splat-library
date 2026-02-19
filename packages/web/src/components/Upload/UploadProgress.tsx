@@ -7,11 +7,20 @@ interface UploadProgressProps {
   sceneId: string | null;
   status: 'uploading' | 'processing' | 'complete' | 'error';
   progress: number;
+  inputType?: 'video' | 'images';
 }
 
-const PIPELINE_STAGES = [
+const ALL_STAGES = [
   { key: 'uploading', label: 'Upload', description: 'Uploading video...' },
   { key: 'extracting_frames', label: 'Extract', description: 'Extracting frames from video...' },
+  { key: 'running_colmap', label: 'Analyze', description: 'Analyzing camera positions...' },
+  { key: 'training_3dgs', label: 'Generate', description: 'Generating 3D Gaussian Splat...' },
+  { key: 'converting', label: 'Convert', description: 'Converting to viewable format...' },
+  { key: 'completed', label: 'Done', description: 'Processing complete!' },
+];
+
+const IMAGE_STAGES = [
+  { key: 'uploading', label: 'Upload', description: 'Uploading images...' },
   { key: 'running_colmap', label: 'Analyze', description: 'Analyzing camera positions...' },
   { key: 'training_3dgs', label: 'Generate', description: 'Generating 3D Gaussian Splat...' },
   { key: 'converting', label: 'Convert', description: 'Converting to viewable format...' },
@@ -34,9 +43,10 @@ const StageIcon = ({ stage, className }: { stage: string; className?: string }) 
   );
 };
 
-export default function UploadProgress({ sceneId, status, progress }: UploadProgressProps) {
+export default function UploadProgress({ sceneId, status, progress, inputType = 'video' }: UploadProgressProps) {
+  const PIPELINE_STAGES = inputType === 'images' ? IMAGE_STAGES : ALL_STAGES;
   const [displayIndex, setDisplayIndex] = useState(0);
-  const [barProgress, setBarProgress] = useState<number[]>([0, 0, 0, 0, 0]);
+  const [barProgress, setBarProgress] = useState<number[]>(() => new Array(PIPELINE_STAGES.length - 1).fill(0));
   const prevIndexRef = useRef(0);
 
   // Poll for processing stage updates

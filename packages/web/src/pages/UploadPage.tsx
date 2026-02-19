@@ -10,6 +10,7 @@ export default function UploadPage() {
     sceneId: string | null;
     status: 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
     progress: number;
+    inputType?: 'video' | 'images';
   }>({
     sceneId: null,
     status: 'idle',
@@ -30,7 +31,7 @@ export default function UploadPage() {
           Back to Gallery
         </Link>
         <h1 className="text-text-primary">Upload New Scene</h1>
-        <p className="text-text-secondary mt-2">Upload a video to generate a 3D gaussian splat scene</p>
+        <p className="text-text-secondary mt-2">Upload a video or images to generate a 3D gaussian splat scene</p>
       </div>
 
       <div className="glow-line mb-8" />
@@ -44,6 +45,7 @@ export default function UploadPage() {
           sceneId={uploadState.sceneId}
           status={uploadState.status}
           progress={uploadState.progress}
+          inputType={uploadState.inputType}
         />
       )}
 
@@ -55,22 +57,23 @@ export default function UploadPage() {
           </svg>
           Tips for best results
         </h3>
+        <p className="text-text-secondary text-sm mb-2">Upload a video or a set of images to generate a 3D gaussian splat scene.</p>
         <ul className="space-y-2 text-sm text-text-secondary">
-          <li className="flex items-start gap-2">
-            <span className="text-accent-cyan">•</span>
-            Use smooth, steady camera movements
-          </li>
           <li className="flex items-start gap-2">
             <span className="text-accent-cyan">•</span>
             Capture the scene from multiple angles
           </li>
           <li className="flex items-start gap-2">
             <span className="text-accent-cyan">•</span>
-            Ensure good lighting conditions
+            Ensure good, consistent lighting
           </li>
           <li className="flex items-start gap-2">
             <span className="text-accent-cyan">•</span>
-            Avoid motion blur and fast movements
+            For video: use smooth, steady camera movements
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-accent-cyan">•</span>
+            For images: use 20+ photos with significant overlap between views
           </li>
         </ul>
       </div>

@@ -436,8 +436,19 @@ resource "aws_sfn_state_machine" "pipeline" {
 
   definition = jsonencode({
     Comment = "3DGS Processing Pipeline"
-    StartAt = "ExtractFrames"
+    StartAt = "CheckInputType"
     States = {
+      CheckInputType = {
+        Type = "Choice"
+        Choices = [
+          {
+            Variable    = "$.inputType"
+            StringEquals = "images"
+            Next        = "RunCOLMAP"
+          }
+        ]
+        Default = "ExtractFrames"
+      }
       ExtractFrames = {
         Type     = "Task"
         Resource = "arn:aws:states:::lambda:invoke"

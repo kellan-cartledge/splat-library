@@ -8,6 +8,7 @@ export interface Scene {
   description?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   processingStage?: 'pending' | 'extracting_frames' | 'running_colmap' | 'training_3dgs' | 'converting' | 'completed' | 'failed';
+  inputType?: 'video' | 'images';
   error?: string;
   thumbnailKey: string;
   splatKey: string;
@@ -45,8 +46,24 @@ export async function getUploadUrl(
   return res.json();
 }
 
+export async function getImageUploadUrls(
+  files: { filename: string; contentType: string }[],
+  token: string
+): Promise<{ sceneId: string; uploads: { filename: string; uploadUrl: string; key: string }[] }> {
+  const res = await fetch(`${API}/upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ inputType: 'images', files })
+  });
+  if (!res.ok) throw new Error('Failed to get upload URLs');
+  return res.json();
+}
+
 export async function createScene(
-  data: { sceneId: string; name: string; videoKey: string },
+  data: { sceneId: string; name: string; videoKey?: string; inputType?: 'video' | 'images' },
   token: string
 ): Promise<Scene> {
   const res = await fetch(`${API}/scenes`, {
@@ -64,7 +81,8 @@ export async function createScene(
 export async function startProcessing(
   data: { 
     sceneId: string; 
-    videoKey: string;
+    inputType?: 'video' | 'images';
+    videoKey?: string;
     fps?: number;
     iterations?: number;
     densifyUntilIter?: number;

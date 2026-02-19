@@ -57,15 +57,18 @@ def create_scene(event):
     body = json.loads(event.get('body', '{}'))
     user_id = event['requestContext']['authorizer']['jwt']['claims']['sub']
     
+    input_type = body.get('inputType', 'video')
     item = {
         'id': body['sceneId'],
         'userId': user_id,
         'name': body.get('name', 'Untitled'),
         'status': 'pending',
         'processingStage': 'pending',
-        'videoKey': body['videoKey'],
+        'inputType': input_type,
         'createdAt': int(time.time())
     }
+    if input_type == 'video':
+        item['videoKey'] = body['videoKey']
     table.put_item(Item=item)
     
     return {

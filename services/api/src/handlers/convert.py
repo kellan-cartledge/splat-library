@@ -25,9 +25,11 @@ def handler(event, context):
     s3.upload_file(local_ply, BUCKET, splat_key)
     
     thumbnail_key = f'outputs/{scene_id}/thumbnail.jpg'
+    first_frame = s3.list_objects_v2(Bucket=BUCKET, Prefix=f'frames/{scene_id}/', MaxKeys=1)
+    frame_key = first_frame['Contents'][0]['Key']
     s3.copy_object(
         Bucket=BUCKET,
-        CopySource=f'{BUCKET}/frames/{scene_id}/frame_0001.jpg',
+        CopySource=f'{BUCKET}/{frame_key}',
         Key=thumbnail_key
     )
     

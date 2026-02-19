@@ -244,7 +244,7 @@ variable "aws_region" {
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT-0 License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 

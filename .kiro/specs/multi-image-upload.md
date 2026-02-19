@@ -56,12 +56,12 @@ Add support for uploading image sets (multiple images) as an alternative to vide
 
 ## Open Questions
 
-- [ ] **Image format constraints** — Should we restrict to JPEG only, or also accept PNG/TIFF? COLMAP supports all three but JPEG is most common for photogrammetry.
-- [ ] **Image count limits** — What's the minimum and maximum number of images we should accept? Typical COLMAP reconstructions need 20+ images for good results.
-- [ ] **File size limits** — Should we enforce a per-image or total upload size limit?
-- [ ] **Image naming** — Should we preserve original filenames or rename to `frame_0001.jpg` etc. for consistency with the video extraction path?
-- [ ] **Validation** — Should we validate image dimensions/resolution consistency before starting the pipeline?
-- [ ] **Progress tracking** — The current 6-stage progress tracker starts at "Extract". Should we rename/skip that stage in the UI for image uploads, or add a new "Upload Images" stage?
+- [x] **Image format constraints** — JPEG/JPG and PNG only. TIFF not required.
+- [x] **Image count limits** — Warn below 20 images but do not hard-block.
+- [x] **File size limits** — 50MB per image.
+- [x] **Image naming** — Preserve original filenames. No implications for COLMAP (it reads all images from a directory regardless of naming).
+- [x] **Validation** — No pre-pipeline validation. Let COLMAP handle whatever it gets.
+- [x] **Progress tracking** — Skip the "Extract" stage in the UI for image uploads (show 5 stages).
 
 ## Out of Scope
 

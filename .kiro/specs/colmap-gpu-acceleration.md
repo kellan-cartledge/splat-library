@@ -50,15 +50,18 @@ colmap mapper \
 - Remove `import pycolmap`
 - Add `import subprocess`
 - Replace three pycolmap calls with `subprocess.run(['colmap', ...], check=True)`
-- Parse reconstruction results from output files instead of pycolmap return values
+- Replace reconstruction result logging (`reconstructions[0].images`, `reconstructions[0].points3D`) with a success message — CLI mapper writes binary files to `output_path/0/`, no easy introspection without re-parsing
+- Fix image count check to include both `.jpg` and `.png` (currently only counts `.jpg`, which undercounts when users upload PNG via multi-image upload)
 - Keep all existing S3 download/upload, DynamoDB updates, and error handling logic
 
 ### `containers/colmap/Dockerfile`
 - Remove `pycolmap` from pip install (no longer needed)
 
-### Validation
-- Verify `colmap/colmap:latest` includes NVIDIA runtime support (it does — built with CUDA)
-- Confirm the Batch job definition exposes GPU resources to the container
+### Infrastructure (no changes needed)
+- Batch job definition already requests `resourceRequirements = [{ type = "GPU", value = "1" }]`
+- COLMAP job runs on the GPU queue with g6e instances
+- Compute environment uses `ECS_AL2023_NVIDIA` AMI which provides host-side NVIDIA drivers
+- `colmap/colmap:latest` base image includes CUDA toolkit for container-side GPU access
 
 ## Expected Impact
 

@@ -75,3 +75,11 @@ colmap mapper \
 - Switching to sequential/spatial matching strategies
 - Tuning SIFT parameters
 - Multi-GPU support
+
+## Post-Implementation Note
+
+COLMAP 3.13.0 (pulled via `colmap/colmap:latest` after initial implementation) renamed GPU flags:
+- `--SiftExtraction.use_gpu` → `--FeatureExtraction.use_gpu`
+- `--SiftMatching.use_gpu` → `--FeatureMatching.use_gpu`
+
+This broke the container. Fix tracked in `nerfstudio-splatfacto-migration.md` spec.

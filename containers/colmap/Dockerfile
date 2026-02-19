@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM --platform=linux/amd64 colmap/colmap:latest
+FROM --platform=linux/amd64 colmap/colmap@sha256:519a5c199771fc01210b867f9382abc324f6c93b91bf168cbb4f78887913d197
 
 RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
 

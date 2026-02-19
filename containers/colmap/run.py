@@ -82,14 +82,14 @@ def main():
             '--database_path', str(database_path),
             '--image_path', str(image_dir),
             '--ImageReader.camera_model', 'SIMPLE_PINHOLE',
-            '--SiftExtraction.use_gpu', '1'
+            '--FeatureExtraction.use_gpu', '1'
         ], 'feature extraction')
         
         print("Running feature matching (GPU)...")
         run_colmap([
             'exhaustive_matcher',
             '--database_path', str(database_path),
-            '--SiftMatching.use_gpu', '1'
+            '--FeatureMatching.use_gpu', '1'
         ], 'feature matching')
         
         print("Running incremental mapping...")

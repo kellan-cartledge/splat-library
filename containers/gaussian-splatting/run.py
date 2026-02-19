@@ -210,9 +210,16 @@ def train_gsplat(input_dir: Path, output_dir: Path):
     points = torch.from_numpy(points3D).float().to(device)
     rgbs = torch.from_numpy(colors3D / 255.0).float().to(device)
     
-    dists = torch.cdist(points, points)
-    dists.fill_diagonal_(float('inf'))
-    knn_dists = dists.topk(3, largest=False).values
+    # KNN distances in batches to avoid N*N OOM
+    k = 3
+    batch_size = 4096
+    N_pts = points.shape[0]
+    knn_dists = torch.zeros(N_pts, k, device=device)
+    for i in range(0, N_pts, batch_size):
+        end = min(i + batch_size, N_pts)
+        d = torch.cdist(points[i:end], points)
+        d[:, i:end].fill_diagonal_(float('inf'))
+        knn_dists[i:end] = d.topk(k, largest=False).values
     dist_avg = knn_dists.mean(dim=-1)
     scales = torch.log(dist_avg.clamp(min=1e-6)).unsqueeze(-1).repeat(1, 3)
     

@@ -149,7 +149,7 @@ resource "aws_batch_compute_environment" "cpu" {
 }
 
 resource "aws_batch_compute_environment" "gpu" {
-  name         = "${var.project}-gpu-v2"
+  name         = "${var.project}-gpu-v4"
   type         = "MANAGED"
   service_role = aws_iam_role.batch_service.arn
   tags         = var.common_tags
@@ -159,7 +159,7 @@ resource "aws_batch_compute_environment" "gpu" {
     allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"
     min_vcpus           = var.gpu_min_vcpus
     max_vcpus           = 64
-    instance_type       = ["g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g6.xlarge", "g6.2xlarge", "g6.4xlarge"]
+    instance_type       = ["g6e.2xlarge", "g6e.4xlarge"]
     subnets             = aws_subnet.private[*].id
     security_group_ids  = [aws_security_group.batch.id]
     instance_role       = aws_iam_instance_profile.batch.arn
@@ -436,8 +436,19 @@ resource "aws_sfn_state_machine" "pipeline" {
 
   definition = jsonencode({
     Comment = "3DGS Processing Pipeline"
-    StartAt = "ExtractFrames"
+    StartAt = "CheckInputType"
     States = {
+      CheckInputType = {
+        Type = "Choice"
+        Choices = [
+          {
+            Variable    = "$.inputType"
+            StringEquals = "images"
+            Next        = "RunCOLMAP"
+          }
+        ]
+        Default = "ExtractFrames"
+      }
       ExtractFrames = {
         Type     = "Task"
         Resource = "arn:aws:states:::lambda:invoke"

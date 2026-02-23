@@ -19,8 +19,8 @@ export default function SplatViewer({ splatKey }: SplatViewerProps) {
 
     const container = containerRef.current;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 0, 5);
+    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.01, 100);
+    camera.position.set(0, 0.3, 1.5);
     
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
@@ -33,8 +33,8 @@ export default function SplatViewer({ splatKey }: SplatViewerProps) {
     const splatUrl = `${config.cdnUrl}/${splatKey}`;
 
     const splat = new SplatMesh({ url: splatUrl });
-    // Rotate 180° around X-axis to convert from OpenCV to OpenGL coordinates
-    splat.quaternion.set(1, 0, 0, 0);
+    // NerfStudio exports with Z-up; rotate -90° around X to convert to Three.js Y-up
+    splat.rotation.x = -Math.PI / 2;
     scene.add(splat);
     setLoading(false);
 

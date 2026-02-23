@@ -42,7 +42,7 @@ Splat Library transforms ordinary videos into stunning, interactive 3D scenes �
 
 7. **Extract Frames** — A Lambda function with an FFmpeg layer extracts video frames at the configured fps rate and writes them to S3.
 
-8. **COLMAP** — An AWS Batch job runs COLMAP on CPU instances to perform Structure-from-Motion, estimating camera poses from the extracted frames.
+8. **COLMAP** — An AWS Batch job runs COLMAP on GPU instances to perform Structure-from-Motion, estimating camera poses from the extracted frames.
 
 9. **Gaussian Splatting** — An AWS Batch job trains a 3D Gaussian Splatting model on GPU Spot instances using gsplat, producing a PLY point cloud.
 

@@ -161,6 +161,7 @@ export default function ScenePage() {
             <ProcessingStatus 
               stage={debugStage || scene.processingStage || 'pending'} 
               error={scene.error}
+              inputType={scene.inputType}
               onViewSplat={() => setShowViewer(true)} 
             />
           ) : (

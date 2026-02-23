@@ -1,9 +1,9 @@
-"""COLMAP processing using pycolmap Python bindings."""
+"""COLMAP processing using GPU-accelerated CLI."""
 import os
 import sys
 import json
+import subprocess
 import boto3
-import pycolmap
 from pathlib import Path
 
 s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
@@ -41,6 +41,19 @@ def send_failure(error: str, stage: str = 'running_colmap'):
     if TASK_TOKEN:
         sfn.send_task_failure(taskToken=TASK_TOKEN, error='COLMAPError', cause=error)
 
+def run_colmap(args, stage_name):
+    try:
+        result = subprocess.run(['colmap'] + args, check=True, capture_output=True, text=True)
+        if result.stdout:
+            # Print last 20 lines of stdout for debugging
+            lines = result.stdout.strip().split('\n')
+            for line in lines[-20:]:
+                print(f"  {line}")
+    except subprocess.CalledProcessError as e:
+        print(f"COLMAP {stage_name} stderr: {e.stderr}", file=sys.stderr)
+        send_failure(e.stderr or str(e), stage_name)
+        sys.exit(1)
+
 def main():
     update_processing_stage('running_colmap')
     
@@ -62,42 +75,55 @@ def main():
                 if filename:
                     s3.download_file(BUCKET, key, str(image_dir / filename))
         
-        num_images = len(list(image_dir.glob('*.jpg')))
+        num_images = len([f for f in image_dir.iterdir() if f.suffix.lower() in ('.jpg', '.jpeg', '.png')])
         print(f"Downloaded {num_images} frames")
         
         if num_images < 3:
             raise RuntimeError(f"Not enough images: {num_images}")
         
-        print("Running feature extraction...")
-        try:
-            pycolmap.extract_features(
-                database_path=database_path,
-                image_path=image_dir,
-                camera_model='SIMPLE_PINHOLE'
-            )
-        except Exception as e:
-            send_failure(str(e), 'feature extraction')
-            sys.exit(1)
+        print("Running feature extraction (GPU)...")
+        run_colmap([
+            'feature_extractor',
+            '--database_path', str(database_path),
+            '--image_path', str(image_dir),
+            '--ImageReader.camera_model', 'SIMPLE_PINHOLE',
+            '--FeatureExtraction.use_gpu', '1'
+        ], 'feature extraction')
         
-        print("Running feature matching...")
-        try:
-            pycolmap.match_exhaustive(database_path=database_path)
-        except Exception as e:
-            send_failure(str(e), 'feature matching')
-            sys.exit(1)
+        print("Running feature matching (GPU)...")
+        run_colmap([
+            'exhaustive_matcher',
+            '--database_path', str(database_path),
+            '--FeatureMatching.use_gpu', '1'
+        ], 'feature matching')
         
         print("Running incremental mapping...")
-        try:
-            reconstructions = pycolmap.incremental_mapping(
-                database_path=database_path, image_path=image_dir, output_path=output_dir
-            )
-            if not reconstructions:
-                raise RuntimeError("No valid reconstruction produced")
-        except Exception as e:
-            send_failure(str(e), 'structure from motion')
-            sys.exit(1)
+        run_colmap([
+            'mapper',
+            '--database_path', str(database_path),
+            '--image_path', str(image_dir),
+            '--output_path', str(output_dir)
+        ], 'structure from motion')
         
-        print(f"Reconstruction complete: {len(reconstructions[0].images)} images, {len(reconstructions[0].points3D)} points")
+        # Verify reconstruction was produced
+        if not any(output_dir.iterdir()):
+            raise RuntimeError("No valid reconstruction produced")
+        
+        # Pick the best reconstruction (largest points3D.bin) and move to sparse/0/
+        recon_dirs = sorted(output_dir.iterdir(), key=lambda d: (d / 'points3D.bin').stat().st_size if (d / 'points3D.bin').exists() else 0, reverse=True)
+        best = recon_dirs[0]
+        if best.name != '0':
+            import shutil
+            shutil.rmtree(output_dir / '0')
+            best.rename(output_dir / '0')
+            print(f"Selected reconstruction {best.name} as best (moved to sparse/0/)")
+        # Clean up other reconstructions
+        for d in output_dir.iterdir():
+            if d.name != '0' and d.is_dir():
+                import shutil
+                shutil.rmtree(d)
+        
+        print("Reconstruction complete")
         
         print("Uploading COLMAP output...")
         for file_path in work_dir.rglob('*'):

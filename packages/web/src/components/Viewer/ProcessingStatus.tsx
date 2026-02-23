@@ -1,17 +1,25 @@
 interface ProcessingStatusProps {
   stage?: string;
   error?: string;
+  inputType?: 'video' | 'images';
   onViewSplat: () => void;
 }
 
-const STAGES = [
+const VIDEO_STAGES = [
   { key: 'extracting_frames', label: 'Extract Frames', description: 'Extracting frames from video...' },
   { key: 'running_colmap', label: 'Analyze', description: 'Analyzing camera positions...' },
   { key: 'training_3dgs', label: 'Generate', description: 'Generating 3D Gaussian Splat...' },
   { key: 'converting', label: 'Converting', description: 'Converting to viewable format...' },
 ];
 
-export default function ProcessingStatus({ stage, error, onViewSplat }: ProcessingStatusProps) {
+const IMAGE_STAGES = [
+  { key: 'running_colmap', label: 'Analyze', description: 'Analyzing camera positions...' },
+  { key: 'training_3dgs', label: 'Generate', description: 'Generating 3D Gaussian Splat...' },
+  { key: 'converting', label: 'Converting', description: 'Converting to viewable format...' },
+];
+
+export default function ProcessingStatus({ stage, error, inputType = 'video', onViewSplat }: ProcessingStatusProps) {
+  const STAGES = inputType === 'images' ? IMAGE_STAGES : VIDEO_STAGES;
   const currentIndex = STAGES.findIndex(s => s.key === stage);
   const isCompleted = stage === 'completed';
   const isFailed = stage === 'failed';

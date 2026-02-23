@@ -19,7 +19,9 @@ def handler(event, context):
     method = event['requestContext']['http']['method']
     path = event['rawPath']
     
-    if method == 'GET' and path == '/scenes':
+    if method == 'GET' and path == '/scenes/mine':
+        return list_user_scenes(event)
+    elif method == 'GET' and path == '/scenes':
         return list_scenes(event)
     elif method == 'GET' and path.startswith('/scenes/'):
         return get_scene(event)
@@ -40,6 +42,21 @@ def list_scenes(event):
         'statusCode': 200,
         'headers': {'Content-Type': 'application/json'},
         'body': json.dumps(response['Items'], cls=DecimalEncoder)
+    }
+
+def list_user_scenes(event):
+    user_id = event['requestContext']['authorizer']['jwt']['claims']['sub']
+    response = table.query(
+        IndexName='userId-index',
+        KeyConditionExpression='userId = :uid',
+        ExpressionAttributeValues={':uid': user_id},
+        ScanIndexForward=False
+    )
+    items = sorted(response['Items'], key=lambda x: x.get('createdAt', 0), reverse=True)
+    return {
+        'statusCode': 200,
+        'headers': {'Content-Type': 'application/json'},
+        'body': json.dumps(items, cls=DecimalEncoder)
     }
 
 def get_scene(event):

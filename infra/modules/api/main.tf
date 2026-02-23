@@ -228,6 +228,14 @@ resource "aws_apigatewayv2_route" "scenes_list" {
   target    = "integrations/${aws_apigatewayv2_integration.scenes.id}"
 }
 
+resource "aws_apigatewayv2_route" "scenes_mine" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /scenes/mine"
+  target             = "integrations/${aws_apigatewayv2_integration.scenes.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
 resource "aws_apigatewayv2_route" "scenes_get" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /scenes/{id}"

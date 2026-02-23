@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useNavigate } from 'react-router-dom';
 import UploadForm from '../components/Upload/UploadForm';
 import UploadProgress from '../components/Upload/UploadProgress';
 
 export default function UploadPage() {
   const { authStatus } = useAuthenticator((context) => [context.authStatus]);
+  const navigate = useNavigate();
   const [uploadState, setUploadState] = useState<{
     sceneId: string | null;
     status: 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
@@ -16,6 +17,13 @@ export default function UploadPage() {
     status: 'idle',
     progress: 0
   });
+
+  // Redirect to jobs page once processing starts
+  useEffect(() => {
+    if (uploadState.status === 'processing' && uploadState.sceneId) {
+      navigate('/jobs');
+    }
+  }, [uploadState.status, uploadState.sceneId, navigate]);
 
   if (authStatus !== 'authenticated') {
     return <Navigate to="/" replace />;

@@ -1,0 +1,13 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: dco-signoff
+        name: Auto-add DCO Signed-off-by
+        language: script
+        entry: .githooks/prepare-commit-msg
+        stages: [prepare-commit-msg]
+        always_run: true

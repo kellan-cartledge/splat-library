@@ -136,7 +136,11 @@ def run_training(data_dir: Path, output_dir: Path, num_images: int):
     if empty_points:
         args += ['--load-3D-points', 'False']
     print(f"Running: {' '.join(args)}")
-    subprocess.run(args, check=True)
+    # Pipe 'y' to stdin so NerfStudio auto-accepts downscale prompts
+    proc = subprocess.Popen(args, stdin=subprocess.PIPE)
+    proc.communicate(input=b'y\n')
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, args)
 
 
 def run_export(output_dir: Path, export_dir: Path):

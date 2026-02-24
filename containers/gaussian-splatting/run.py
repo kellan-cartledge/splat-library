@@ -79,8 +79,38 @@ def download_colmap_output(data_dir: Path):
     return num_images
 
 
+def get_downscale_factor(images_dir: Path) -> int:
+    """Return 2 if images exceed 1600px on longest edge, else 1."""
+    for img_path in images_dir.iterdir():
+        if img_path.suffix.lower() in ('.jpg', '.jpeg', '.png'):
+            # Read JPEG/PNG dimensions from header without loading full image
+            import struct
+            with open(img_path, 'rb') as f:
+                header = f.read(32)
+                if header[:2] == b'\xff\xd8':  # JPEG
+                    f.seek(0)
+                    f.read(2)
+                    while True:
+                        marker, size = struct.unpack('>HH', f.read(4))
+                        if 0xFFC0 <= marker <= 0xFFC3:
+                            f.read(1)
+                            h, w = struct.unpack('>HH', f.read(4))
+                            break
+                        f.read(size - 2)
+                elif header[:8] == b'\x89PNG\r\n\x1a\n':  # PNG
+                    w, h = struct.unpack('>II', header[16:24])
+                else:
+                    continue
+            max_dim = max(w, h)
+            factor = 2 if max_dim > 1600 else 1
+            print(f"Image resolution: {w}x{h}, downscale factor: {factor}")
+            return factor
+    return 1
+
+
 def run_training(data_dir: Path, output_dir: Path, num_images: int):
     """Run ns-train splatfacto."""
+    downscale = get_downscale_factor(data_dir / 'images')
     args = [
         'ns-train', 'splatfacto',
         '--timestamp', SCENE_ID,
@@ -101,7 +131,7 @@ def run_training(data_dir: Path, output_dir: Path, num_images: int):
     args += [
         'colmap',
         '--data', str(data_dir),
-        '--downscale-factor', '1',
+        '--downscale-factor', str(downscale),
     ]
     if empty_points:
         args += ['--load-3D-points', 'False']

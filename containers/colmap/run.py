@@ -12,6 +12,7 @@ dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', '
 
 BUCKET = os.environ['BUCKET']
 SCENE_ID = os.environ['SCENE_ID']
+INPUT_TYPE = os.environ.get('INPUT_TYPE', 'video')
 SCENES_TABLE = os.environ.get('SCENES_TABLE')
 TASK_TOKEN = os.environ.get('SFN_TASK_TOKEN')
 
@@ -82,20 +83,31 @@ def main():
             raise RuntimeError(f"Not enough images: {num_images}")
         
         print("Running feature extraction (GPU)...")
-        run_colmap([
+        extract_args = [
             'feature_extractor',
             '--database_path', str(database_path),
             '--image_path', str(image_dir),
             '--ImageReader.camera_model', 'SIMPLE_PINHOLE',
             '--FeatureExtraction.use_gpu', '1'
-        ], 'feature extraction')
+        ]
+        if INPUT_TYPE == 'video':
+            extract_args += ['--ImageReader.single_camera', '1']
+        run_colmap(extract_args, 'feature extraction')
         
-        print("Running feature matching (GPU)...")
-        run_colmap([
-            'exhaustive_matcher',
-            '--database_path', str(database_path),
-            '--FeatureMatching.use_gpu', '1'
-        ], 'feature matching')
+        print(f"Running feature matching (GPU, mode={'sequential' if INPUT_TYPE == 'video' else 'exhaustive'})...")
+        if INPUT_TYPE == 'video':
+            run_colmap([
+                'sequential_matcher',
+                '--database_path', str(database_path),
+                '--FeatureMatching.use_gpu', '1',
+                '--SequentialMatching.overlap', '10'
+            ], 'feature matching')
+        else:
+            run_colmap([
+                'exhaustive_matcher',
+                '--database_path', str(database_path),
+                '--FeatureMatching.use_gpu', '1'
+            ], 'feature matching')
         
         print("Running incremental mapping...")
         run_colmap([

@@ -424,6 +424,7 @@ resource "aws_sfn_state_machine" "pipeline" {
         }
         ResultSelector = {
           "sceneId.$"               = "$.Payload.sceneId"
+          "inputType"               = "video"
           "iterations.$"            = "$.Payload.iterations"
           "densifyUntilIter.$"      = "$.Payload.densifyUntilIter"
           "densificationInterval.$" = "$.Payload.densificationInterval"
@@ -442,7 +443,8 @@ resource "aws_sfn_state_machine" "pipeline" {
             Environment = [
               { Name = "SCENE_ID", "Value.$" = "$.sceneId" },
               { Name = "BUCKET", Value = var.assets_bucket },
-              { Name = "SCENES_TABLE", Value = var.scenes_table }
+              { Name = "SCENES_TABLE", Value = var.scenes_table },
+              { Name = "INPUT_TYPE", "Value.$" = "$.inputType" }
             ]
           }
         }

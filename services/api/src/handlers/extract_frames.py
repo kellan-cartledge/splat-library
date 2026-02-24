@@ -10,11 +10,27 @@ def handler(event, context):
     scene_id = event['sceneId']
     video_key = event['videoKey']
     fps = event.get('fps', 3)
+    max_frames = 150
     
     update_processing_stage(scene_id, 'extracting_frames')
     
     local_video = f'/tmp/{scene_id}.mp4'
     s3.download_file(BUCKET, video_key, local_video)
+    
+    # Get video duration and cap fps to stay under max_frames
+    probe = subprocess.run(
+        ['/opt/bin/ffmpeg', '-i', local_video, '-f', 'null', '-'],
+        capture_output=True, text=True
+    )
+    # ffmpeg prints duration in stderr like "Duration: 00:01:30.00"
+    import re
+    duration = 0
+    m = re.search(r'Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)', probe.stderr)
+    if m:
+        duration = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+    if duration > 0 and fps * duration > max_frames:
+        fps = round(max_frames / duration, 2)
+        print(f"Capped fps to {fps} for {duration:.0f}s video (max {max_frames} frames)")
     
     frames_dir = f'/tmp/{scene_id}_frames'
     os.makedirs(frames_dir, exist_ok=True)

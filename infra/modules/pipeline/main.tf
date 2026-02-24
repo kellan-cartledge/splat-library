@@ -481,7 +481,9 @@ resource "aws_sfn_state_machine" "pipeline" {
           FunctionName = aws_lambda_function.convert.arn
           "Payload.$"  = "$"
         }
-        End = true
+        ResultPath = "$.convertResult"
+        Next       = "PipelineSucceeded"
+        Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
       }
       HandleFailure = {
         Type     = "Task"
@@ -490,7 +492,16 @@ resource "aws_sfn_state_machine" "pipeline" {
           FunctionName = aws_lambda_function.handle_failure.arn
           "Payload.$"  = "$"
         }
-        End = true
+        ResultPath = "$.failureResult"
+        Next       = "PipelineFailed"
+      }
+      PipelineSucceeded = {
+        Type = "Succeed"
+      }
+      PipelineFailed = {
+        Type  = "Fail"
+        Error = "PipelineError"
+        Cause = "Pipeline failed - see HandleFailure output for details"
       }
     }
   })

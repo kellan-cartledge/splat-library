@@ -1,5 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Scene } from '../../api/client';
 
 export default function Header() {
   const { authStatus, signOut } = useAuthenticator((context) => [
@@ -7,6 +9,11 @@ export default function Header() {
     context.signOut
   ]);
   const location = useLocation();
+  const queryClient = useQueryClient();
+
+  // Read active job count from cache (no extra API call)
+  const cachedScenes = queryClient.getQueryData<Scene[]>(['myScenes']);
+  const activeCount = cachedScenes?.filter(s => s.status === 'pending' || s.status === 'processing').length || 0;
 
   const navLink = (to: string, label: string) => {
     const isActive = location.pathname === to;
@@ -46,6 +53,12 @@ export default function Header() {
           
           {authStatus === 'authenticated' ? (
             <>
+              {navLink('/jobs', 'Jobs')}
+              {activeCount > 0 && (
+                <span className="relative -ml-2 mr-1 px-1.5 py-0.5 text-xs font-mono bg-accent-yellow/20 text-accent-yellow rounded-full">
+                  {activeCount}
+                </span>
+              )}
               {navLink('/upload', 'Upload')}
               <div className="ml-4 pl-4 border-l border-surface-border flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />

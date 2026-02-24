@@ -5,13 +5,16 @@ const API = config.apiUrl;
 export interface Scene {
   id: string;
   name: string;
+  userId: string;
   description?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   processingStage?: 'pending' | 'extracting_frames' | 'running_colmap' | 'training_3dgs' | 'converting' | 'completed' | 'failed';
   inputType?: 'video' | 'images';
   error?: string;
+  settings?: { iterations?: number; fps?: number; densifyUntilIter?: number; densificationInterval?: number };
   thumbnailKey: string;
   splatKey: string;
+  videoKey?: string;
   createdAt: number;
   completedAt?: number;
   gaussianCount?: number;
@@ -26,6 +29,14 @@ export async function fetchScenes(): Promise<Scene[]> {
 export async function fetchScene(id: string): Promise<Scene> {
   const res = await fetch(`${API}/scenes/${id}`);
   if (!res.ok) throw new Error('Failed to fetch scene');
+  return res.json();
+}
+
+export async function fetchMyScenes(token: string): Promise<Scene[]> {
+  const res = await fetch(`${API}/scenes/mine`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error('Failed to fetch jobs');
   return res.json();
 }
 

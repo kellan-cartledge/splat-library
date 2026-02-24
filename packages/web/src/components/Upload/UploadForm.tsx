@@ -100,7 +100,19 @@ export default function UploadForm({ onUploadStart }: UploadFormProps) {
         const { sceneId, uploadUrl, key } = await getUploadUrl(file!.name, file!.type, token);
         onUploadStart({ sceneId, status: 'uploading', progress: 0, inputType: 'video' });
 
-        await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file!.type } });
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              onUploadStart({ sceneId, status: 'uploading', progress: Math.round((e.loaded / e.total) * 100), inputType: 'video' });
+            }
+          };
+          xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed: ${xhr.status}`));
+          xhr.onerror = () => reject(new Error('Upload failed'));
+          xhr.open('PUT', uploadUrl);
+          xhr.setRequestHeader('Content-Type', file!.type);
+          xhr.send(file);
+        });
         await createScene({ sceneId, name, videoKey: key, inputType: 'video' }, token);
         await startProcessing({ sceneId, inputType: 'video', videoKey: key, ...settings }, token);
         onUploadStart({ sceneId, status: 'processing', progress: 100, inputType: 'video' });

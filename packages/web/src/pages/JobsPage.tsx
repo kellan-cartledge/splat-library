@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { fetchMyScenes, Scene } from '../api/client';
@@ -30,16 +30,17 @@ function StatusBadge({ scene }: { scene: Scene }) {
   }
   const stageLabels: Record<string, string> = {
     pending: 'Pending',
-    extracting_frames: 'Extracting',
-    running_colmap: 'COLMAP',
-    training_3dgs: 'Training',
-    converting: 'Converting',
+    extracting_frames: 'Extract',
+    running_colmap: 'Analyze',
+    training_3dgs: 'Generate',
+    converting: 'Convert',
   };
   const label = stageLabels[scene.processingStage || 'pending'] || 'Processing';
   return <span className="badge-warning animate-pulse">{label}</span>;
 }
 
 function JobsList() {
+  const navigate = useNavigate();
   const { data: scenes, isLoading, error } = useQuery({
     queryKey: ['myScenes'],
     queryFn: async () => {
@@ -101,12 +102,8 @@ function JobsList() {
         </thead>
         <tbody>
           {scenes.map((scene, i) => (
-            <tr key={scene.id} className={`border-b border-surface-border/50 hover:bg-surface-overlay/50 transition-colors cursor-pointer animate-fade-up opacity-0`} style={{ animationDelay: `${i * 0.05}s` }}>
-              <td className="px-4 py-3">
-                <Link to={`/jobs/${scene.id}`} className="text-text-primary hover:text-accent-cyan transition-colors">
-                  {scene.name}
-                </Link>
-              </td>
+            <tr key={scene.id} onClick={() => navigate(`/jobs/${scene.id}`)} className={`border-b border-surface-border/50 hover:bg-surface-overlay/50 transition-colors cursor-pointer animate-fade-up opacity-0`} style={{ animationDelay: `${i * 0.05}s` }}>
+              <td className="px-4 py-3 text-text-primary">{scene.name}</td>
               <td className="px-4 py-3"><StatusBadge scene={scene} /></td>
               <td className="px-4 py-3 text-text-secondary text-sm capitalize">{scene.inputType || 'video'}</td>
               <td className="px-4 py-3 text-text-muted text-sm text-right">{relativeTime(scene)}</td>

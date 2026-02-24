@@ -126,28 +126,6 @@ resource "aws_ecr_repository" "gaussian_splatting" {
 }
 
 # Batch
-resource "aws_batch_compute_environment" "cpu" {
-  name         = "${var.project}-cpu"
-  type         = "MANAGED"
-  service_role = aws_iam_role.batch_service.arn
-  tags         = var.common_tags
-
-  compute_resources {
-    type                = "SPOT"
-    allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"
-    min_vcpus           = 0
-    max_vcpus           = 16
-    instance_type       = ["c6i.2xlarge", "c6i.4xlarge"]
-    subnets             = aws_subnet.private[*].id
-    security_group_ids  = [aws_security_group.batch.id]
-    instance_role       = aws_iam_instance_profile.batch.arn
-    spot_iam_fleet_role = aws_iam_role.spot_fleet.arn
-    tags                = var.common_tags
-  }
-
-  depends_on = [aws_iam_role_policy_attachment.batch_service]
-}
-
 resource "aws_batch_compute_environment" "gpu" {
   name         = "${var.project}-gpu-v4"
   type         = "MANAGED"
@@ -186,18 +164,6 @@ resource "aws_launch_template" "gpu" {
       volume_type           = "gp3"
       delete_on_termination = true
     }
-  }
-}
-
-resource "aws_batch_job_queue" "cpu" {
-  name     = "${var.project}-cpu-queue"
-  state    = "ENABLED"
-  priority = 1
-  tags     = var.common_tags
-
-  compute_environment_order {
-    order               = 1
-    compute_environment = aws_batch_compute_environment.cpu.arn
   }
 }
 

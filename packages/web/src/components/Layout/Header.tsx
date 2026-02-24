@@ -53,7 +53,7 @@ export default function Header() {
           
           {authStatus === 'authenticated' ? (
             <>
-              {navLink('/jobs', 'My Jobs')}
+              {navLink('/jobs', 'Jobs')}
               {activeCount > 0 && (
                 <span className="relative -ml-2 mr-1 px-1.5 py-0.5 text-xs font-mono bg-accent-yellow/20 text-accent-yellow rounded-full">
                   {activeCount}

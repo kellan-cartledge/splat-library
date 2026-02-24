@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useScenes } from '../hooks/useScenes';
 import SceneCard from '../components/Gallery/SceneCard';
 
@@ -43,10 +44,10 @@ export default function GalleryPage() {
             </svg>
           </div>
           <h3 className="text-text-primary mb-2">No scenes yet</h3>
-          <p className="text-text-secondary text-sm mb-6">Be the first to upload a video and create a 3D scene</p>
-          <a href="/upload" className="btn btn-primary">
-            Upload Video
-          </a>
+          <p className="text-text-secondary text-sm mb-6">Upload a video or images to create your first 3D scene</p>
+          <Link to="/upload" className="btn btn-primary">
+            Upload
+          </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

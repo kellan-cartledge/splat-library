@@ -6,17 +6,18 @@ import ProcessingStatus from '../components/Viewer/ProcessingStatus';
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
 
-  const { data: scene, isLoading } = useQuery({
+  const { data: scene, isLoading, isFetching } = useQuery({
     queryKey: ['scene', id],
     queryFn: () => fetchScene(id!),
     enabled: !!id,
+    retry: 3,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === 'processing' || status === 'pending' ? 10000 : false;
     },
   });
 
-  if (isLoading) {
+  if (isLoading || (!scene && isFetching)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <div className="spinner-lg" />
@@ -64,7 +65,7 @@ export default function JobDetailPage() {
 
       {/* Progress */}
       <div className="card overflow-hidden mb-6">
-        <div className="aspect-video bg-surface-overlay flex items-center justify-center">
+        <div className="bg-surface-overlay flex items-center justify-center">
           <ProcessingStatus
             stage={scene.processingStage || 'pending'}
             error={scene.error}

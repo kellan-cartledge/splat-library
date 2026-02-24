@@ -18,10 +18,10 @@ export default function UploadPage() {
     progress: 0
   });
 
-  // Redirect to jobs page once processing starts
+  // Redirect to job detail page once processing starts
   useEffect(() => {
     if (uploadState.status === 'processing' && uploadState.sceneId) {
-      navigate('/jobs');
+      navigate(`/jobs/${uploadState.sceneId}`);
     }
   }, [uploadState.status, uploadState.sceneId, navigate]);
 

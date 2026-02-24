@@ -10,7 +10,7 @@ def handler(event, context):
     scene_id = event['sceneId']
     video_key = event['videoKey']
     fps = event.get('fps', 3)
-    max_frames = 150
+    max_frames = 100
     
     update_processing_stage(scene_id, 'extracting_frames')
     

@@ -102,7 +102,7 @@ def get_downscale_factor(images_dir: Path) -> int:
                 else:
                     continue
             max_dim = max(w, h)
-            factor = 2 if max_dim > 1600 else 1
+            factor = 2 if max_dim > 800 else 1
             print(f"Image resolution: {w}x{h}, downscale factor: {factor}")
             return factor
     return 1

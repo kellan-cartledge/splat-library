@@ -79,8 +79,55 @@ def download_colmap_output(data_dir: Path):
     return num_images
 
 
+def get_downscale_factor(images_dir: Path, colmap_sparse: Path) -> int:
+    """Return 2 if images exceed 800px on longest edge, else 1.
+    If factor is 2, pre-downscale images in-place and patch cameras.bin."""
+    from PIL import Image
+    factor = 1
+    for img_path in images_dir.iterdir():
+        if img_path.suffix.lower() in ('.jpg', '.jpeg', '.png'):
+            with Image.open(img_path) as img:
+                max_dim = max(img.size)
+                factor = 2 if max_dim > 800 else 1
+                print(f"Image resolution: {img.size[0]}x{img.size[1]}, downscale factor: {factor}")
+            break
+    if factor > 1:
+        print(f"Pre-downscaling images by {factor}x...")
+        for img_path in images_dir.iterdir():
+            if img_path.suffix.lower() in ('.jpg', '.jpeg', '.png'):
+                with Image.open(img_path) as img:
+                    new_size = (img.size[0] // factor, img.size[1] // factor)
+                    img.resize(new_size, Image.LANCZOS).save(img_path, quality=95)
+        # Patch cameras.bin to match downscaled resolution
+        import struct
+        cameras_bin = colmap_sparse / 'cameras.bin'
+        data = cameras_bin.read_bytes()
+        num_cameras = struct.unpack('<Q', data[:8])[0]
+        offset = 8
+        # Model param counts: {0:3, 1:4, 2:4, 3:5, 4:4, 5:5, 6:4, 7:5, 8:12, 9:8}
+        param_counts = {0:3, 1:4, 2:4, 3:5, 4:4, 5:5, 6:4, 7:5, 8:12, 9:8}
+        out = bytearray(data[:8])
+        for _ in range(num_cameras):
+            cam_id, model_id = struct.unpack('<II', data[offset:offset+8])
+            w, h = struct.unpack('<QQ', data[offset+8:offset+24])
+            n_params = param_counts.get(model_id, 4)
+            params = struct.unpack(f'<{n_params}d', data[offset+24:offset+24+n_params*8])
+            # Scale width, height, and focal/principal point params
+            w //= factor
+            h //= factor
+            params = tuple(p / factor for p in params)
+            out += struct.pack('<II', cam_id, model_id)
+            out += struct.pack('<QQ', w, h)
+            out += struct.pack(f'<{n_params}d', *params)
+            offset += 24 + n_params * 8
+        cameras_bin.write_bytes(bytes(out))
+        print(f"Patched cameras.bin: {num_cameras} cameras scaled by 1/{factor}")
+    return factor
+
+
 def run_training(data_dir: Path, output_dir: Path, num_images: int):
     """Run ns-train splatfacto."""
+    get_downscale_factor(data_dir / 'images', data_dir / 'colmap' / 'sparse' / '0')
     args = [
         'ns-train', 'splatfacto',
         '--timestamp', SCENE_ID,
@@ -101,7 +148,6 @@ def run_training(data_dir: Path, output_dir: Path, num_images: int):
     args += [
         'colmap',
         '--data', str(data_dir),
-        '--downscale-factor', '1',
     ]
     if empty_points:
         args += ['--load-3D-points', 'False']

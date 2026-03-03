@@ -11,8 +11,8 @@ TABLE = os.environ['SCENES_TABLE']
 # Quality-focused defaults
 DEFAULTS = {
     'fps': 3,
-    'iterations': 30000,
-    'densifyUntilIter': 15000,
+    'iterations': 7000,
+    'densifyUntilIter': 5000,
     'densificationInterval': 100
 }
 

@@ -424,6 +424,7 @@ resource "aws_sfn_state_machine" "pipeline" {
         }
         ResultSelector = {
           "sceneId.$"               = "$.Payload.sceneId"
+          "inputType"               = "video"
           "iterations.$"            = "$.Payload.iterations"
           "densifyUntilIter.$"      = "$.Payload.densifyUntilIter"
           "densificationInterval.$" = "$.Payload.densificationInterval"
@@ -442,7 +443,8 @@ resource "aws_sfn_state_machine" "pipeline" {
             Environment = [
               { Name = "SCENE_ID", "Value.$" = "$.sceneId" },
               { Name = "BUCKET", Value = var.assets_bucket },
-              { Name = "SCENES_TABLE", Value = var.scenes_table }
+              { Name = "SCENES_TABLE", Value = var.scenes_table },
+              { Name = "INPUT_TYPE", "Value.$" = "$.inputType" }
             ]
           }
         }
@@ -479,7 +481,9 @@ resource "aws_sfn_state_machine" "pipeline" {
           FunctionName = aws_lambda_function.convert.arn
           "Payload.$"  = "$"
         }
-        End = true
+        ResultPath = "$.convertResult"
+        Next       = "PipelineSucceeded"
+        Catch      = [{ ErrorEquals = ["States.ALL"], Next = "HandleFailure", ResultPath = "$.error" }]
       }
       HandleFailure = {
         Type     = "Task"
@@ -488,7 +492,16 @@ resource "aws_sfn_state_machine" "pipeline" {
           FunctionName = aws_lambda_function.handle_failure.arn
           "Payload.$"  = "$"
         }
-        End = true
+        ResultPath = "$.failureResult"
+        Next       = "PipelineFailed"
+      }
+      PipelineSucceeded = {
+        Type = "Succeed"
+      }
+      PipelineFailed = {
+        Type  = "Fail"
+        Error = "PipelineError"
+        Cause = "Pipeline failed - see HandleFailure output for details"
       }
     }
   })
